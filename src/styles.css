@@ -2939,4 +2939,14 @@ select:focus {
     width: 34px;
     height: 34px;
   }
+
+  .pair-toggle-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 30px;
+    height: 30px;
+    font-size: 22px;
+    line-height: 1;
+  }
 }
