@@ -2932,7 +2932,12 @@ select:focus {
   }
 
   .arb-quote-table .network-heading {
+    justify-content: center;
     gap: 10px;
+  }
+
+  .arb-quote-table .network-name {
+    display: none;
   }
 
   .arb-quote-table .network-logo {
