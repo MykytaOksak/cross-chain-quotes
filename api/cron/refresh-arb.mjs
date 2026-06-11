@@ -26,6 +26,9 @@ export default async function handler(req, res) {
     const previous = await getJson(SNAPSHOT_KEY);
     const snapshot = await buildArbSnapshot(CONFIG_PATH, {
       previousQuoteMap: previous?.quoteMap ?? null,
+      onUpdate: async (partial) => {
+        await setJson(SNAPSHOT_KEY, { ...partial, refreshing: true });
+      },
     });
     await setJson(SNAPSHOT_KEY, snapshot);
     sendJson(res, 200, {

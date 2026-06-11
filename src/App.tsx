@@ -215,6 +215,7 @@ type ArbSnapshotResponse = {
   quoteMap: QuoteMap;
   updatedAt: number;
   refreshing?: boolean;
+  stale?: boolean;
 };
 
 type PairSortColumn = "buyPrice" | "sellPrice";
@@ -381,6 +382,7 @@ type ThemeMode = "system" | "dark" | "light";
 type TabId = "arb" | "arb-new" | "portfolio" | "pendle";
 const BASE_SETTINGS = baseConfig as unknown as Settings;
 const ARB_SNAPSHOT_ENDPOINT = "/api/shared/arb-snapshot";
+const ARB_REFRESH_ENDPOINT = "/api/cron/refresh-arb";
 let pendleModulePromise: Promise<typeof import("./pendle")> | null = null;
 const BASE_ARB_SETTINGS: ArbSettings = {
   defaultAmount: BASE_SETTINGS.defaultAmount,
@@ -4471,6 +4473,7 @@ function App() {
   const [lastUpdated, setLastUpdated] = useState<number | null>(null);
   const [arbError, setArbError] = useState<string | null>(null);
   const [isArbSyncing, setIsArbSyncing] = useState(false);
+  const arbRefreshRequestInFlightRef = useRef(false);
   const [isPortfolioRefreshing, setIsPortfolioRefreshing] = useState(false);
   const isRunning = true;
   const lastNotificationRef = useRef<Record<string, { ts: number; amount: number }>>({});
@@ -5520,8 +5523,19 @@ function App() {
       setArbSettings(normalizeArbSettings(payload.settings));
       setQuoteMap(payload.quoteMap ?? {});
       setLastUpdated(typeof payload.updatedAt === "number" ? payload.updatedAt : Date.now());
-      const nextRefreshing = Boolean(payload.refreshing);
+      const nextRefreshing = Boolean(payload.refreshing || payload.stale);
       setIsArbSyncing(nextRefreshing);
+      if (payload.stale && !payload.refreshing && !arbRefreshRequestInFlightRef.current) {
+        arbRefreshRequestInFlightRef.current = true;
+        fetch(ARB_REFRESH_ENDPOINT, {
+          method: "POST",
+          headers: { accept: "application/json" },
+        })
+          .catch(() => undefined)
+          .finally(() => {
+            arbRefreshRequestInFlightRef.current = false;
+          });
+      }
       setArbError(null);
       return nextRefreshing;
     } catch (error) {
