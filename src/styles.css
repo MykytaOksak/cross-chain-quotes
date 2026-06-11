@@ -3110,6 +3110,10 @@ select:focus {
   .arb-quote-table .network-logo {
     width: 34px;
     height: 34px;
+    min-width: 34px;
+    max-width: 34px;
+    flex: 0 0 34px;
+    aspect-ratio: 1 / 1;
   }
 
   .pair-toggle-icon {
