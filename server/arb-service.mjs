@@ -23,9 +23,10 @@ const ENSO_REQUEST_GAP_MS = 1_150;
 const ENSO_RATE_LIMIT_RETRY_MS = 1_500;
 const AVALANCHE_PUBLIC_RPC = "https://api.avax.network/ext/bc/C/rpc";
 const PLASMA_USDT_PROXY_RATE_CHAIN = "arbitrum";
-const PLASMA_USDT_PROXY_RATE_LABEL = "Arbitrum USDC/USDT";
+const PLASMA_USDT_PROXY_RATE_LABEL = "Binance USDC/USDT";
 const PLASMA_USDT_PROXY_RATE_MIN = 0.97;
 const PLASMA_USDT_PROXY_RATE_MAX = 1.03;
+const BINANCE_USDC_USDT_PRICE_URL = "https://api.binance.com/api/v3/ticker/price?symbol=USDCUSDT";
 const MOVEMENT_SAVUSD_ADDRESS = "0xde6eb2598d91fd43c432ba7f0bca56158525a74ac0841b749ce17bf984cf5642";
 const MOVEMENT_USDCX_ADDRESS = "0xba11833544a2f99eec743f41a228ca6ffa7f13c3b6b04681d5a79a8b75ff225e";
 const MOVEMENT_USDTE_ADDRESS = "0x447721a30109c662dde9c73a0c2c9c9c459fb5e5a9c92f03c50fa69737f5d08d";
@@ -364,6 +365,27 @@ function normalizePlasmaUsdtProxyRate(rate) {
   if (!Number.isFinite(value) || value <= 0) return null;
   if (value < PLASMA_USDT_PROXY_RATE_MIN || value > PLASMA_USDT_PROXY_RATE_MAX) return null;
   return value;
+}
+
+async function fetchBinanceUsdcUsdtProxyRate() {
+  const { response, text } = await fetchWithRateLimit(BINANCE_USDC_USDT_PRICE_URL, { method: "GET" });
+  let payload = {};
+  try {
+    payload = text ? JSON.parse(text) : {};
+  } catch {
+    throw new Error(`Invalid Binance ${response.status} response`);
+  }
+  if (!response.ok) {
+    throw new Error(payload?.msg || `Binance HTTP ${response.status}`);
+  }
+  const usdtPerUsdc = Number(payload?.price);
+  const usdcPerUsdt = usdtPerUsdc > 0 ? 1 / usdtPerUsdc : null;
+  const normalized = normalizePlasmaUsdtProxyRate(usdcPerUsdt);
+  if (!normalized) {
+    const detail = Number.isFinite(usdtPerUsdc) ? ` (USDCUSDT ${usdtPerUsdc.toFixed(6)})` : "";
+    throw new Error(`Unrealistic ${PLASMA_USDT_PROXY_RATE_LABEL} rate${detail}`);
+  }
+  return normalized;
 }
 
 function isUnrealisticStableSellQuote(pair, fromAmount, receiveAmount) {
@@ -1764,6 +1786,11 @@ export async function buildArbSnapshot(configPath, options = {}) {
   publishSnapshot();
 
   let usdcUsdtRate = null;
+  try {
+    usdcUsdtRate = await fetchBinanceUsdcUsdtProxyRate();
+  } catch {
+    usdcUsdtRate = null;
+  }
   const processTask = async (task) => {
     const { pair, net, combos, error, baseSymbol, quoteSymbol, includeMintRedeem } = task;
     if (error) {
@@ -1858,7 +1885,7 @@ export async function buildArbSnapshot(configPath, options = {}) {
       }
     }
 
-    if (isProxyRatePair(pair) && net.chain === PLASMA_USDT_PROXY_RATE_CHAIN) {
+    if (!usdcUsdtRate && isProxyRatePair(pair) && net.chain === PLASMA_USDT_PROXY_RATE_CHAIN) {
       const rate = computeUsdcUsdtRateFromQuotes(pair, results);
       if (rate && Number.isFinite(rate)) {
         usdcUsdtRate = rate;
