@@ -1632,6 +1632,7 @@ body {
 }
 
 .status {
+  position: relative;
   box-sizing: border-box;
   padding: 0 10px;
   border-radius: 999px;
@@ -1648,6 +1649,7 @@ body {
   justify-content: center;
   line-height: 1;
   margin: 0;
+  overflow: hidden;
 }
 
 .status[data-align="left"] {
@@ -1672,6 +1674,22 @@ body {
   background: rgba(255, 255, 255, 0.08);
   color: var(--text-2);
   border-color: var(--line);
+}
+
+.status.loading::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    var(--skeleton-shimmer-mid),
+    transparent
+  );
+  transform: translateX(-100%);
+  animation: shimmer 1.2s infinite;
+  pointer-events: none;
 }
 
 .quote-grid {

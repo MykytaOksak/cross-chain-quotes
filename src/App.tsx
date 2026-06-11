@@ -209,6 +209,31 @@ type VariantQuote = {
 
 type QuoteMap = Record<string, Record<string, VariantQuote[]>>;
 
+function mergeLoadingQuoteMap(previous: QuoteMap, incoming: QuoteMap): QuoteMap {
+  const merged: QuoteMap = {};
+  Object.entries(incoming).forEach(([pairId, networks]) => {
+    const mergedNetworks: Record<string, VariantQuote[]> = {};
+    merged[pairId] = mergedNetworks;
+    Object.entries(networks).forEach(([networkId, quotes]) => {
+      const previousQuotes = previous[pairId]?.[networkId] ?? [];
+      mergedNetworks[networkId] = quotes.map((quote) => {
+        if (quote.status !== "loading") return quote;
+        const previousQuote = previousQuotes.find((item) => item.id === quote.id);
+        if (!previousQuote?.buy && !previousQuote?.sell) return quote;
+        return {
+          ...previousQuote,
+          ...quote,
+          buy: quote.buy ?? previousQuote.buy,
+          sell: quote.sell ?? previousQuote.sell,
+          updatedAt: quote.updatedAt ?? previousQuote.updatedAt,
+          roundTripPct: quote.roundTripPct ?? previousQuote.roundTripPct,
+        };
+      });
+    });
+  });
+  return merged;
+}
+
 type ArbSnapshotResponse = {
   ok: boolean;
   settings: ArbSettings;
@@ -5521,7 +5546,7 @@ function App() {
       setArbSettings(normalizeArbSettings(payload.settings));
     }
     if (payload.quoteMap) {
-      setQuoteMap(payload.quoteMap);
+      setQuoteMap((previous) => mergeLoadingQuoteMap(previous, payload.quoteMap ?? {}));
     }
     if (typeof payload.updatedAt === "number") {
       setLastUpdated(payload.updatedAt);
@@ -7271,6 +7296,8 @@ function App() {
                         {rows.map(({ net, quote, rowKey }) => {
                           const status = quote?.status ?? "idle";
                           const isLoading = status === "loading" || status === "idle";
+                          const showBuySkeleton = isLoading && !quote?.buy;
+                          const showSellSkeleton = isLoading && !quote?.sell;
                           const variantLabels = quote
                             ? (() => {
                                 const labels = getVariantLabels(
@@ -7308,7 +7335,7 @@ function App() {
                               </td>
                               <td>
                                 <div className="table-cell">
-                                  {isLoading ? (
+                                  {showBuySkeleton ? (
                                     <div className="skeleton-stack">
                                       <div className="skeleton-line lg" />
                                       <div className="skeleton-line sm" />
@@ -7331,7 +7358,7 @@ function App() {
                               </td>
                               <td>
                                 <div className="table-cell table-cell-price">
-                                  {isLoading ? (
+                                  {showBuySkeleton ? (
                                     <div className="skeleton-stack">
                                       <div className="skeleton-line md" />
                                       <div className="skeleton-line xs" />
@@ -7350,7 +7377,7 @@ function App() {
                               </td>
                               <td>
                                 <div className="table-cell">
-                                  {isLoading ? (
+                                  {showSellSkeleton ? (
                                     <div className="skeleton-stack">
                                       <div className="skeleton-line lg" />
                                       <div className="skeleton-line sm" />
@@ -7373,7 +7400,7 @@ function App() {
                               </td>
                               <td>
                                 <div className="table-cell table-cell-price">
-                                  {isLoading ? (
+                                  {showSellSkeleton ? (
                                     <div className="skeleton-stack">
                                       <div className="skeleton-line md" />
                                       <div className="skeleton-line xs" />
