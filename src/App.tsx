@@ -4497,6 +4497,11 @@ function App() {
 
   useEffect(() => {
     if (typeof window === "undefined") return;
+    if (IS_HOSTED_MODE && activeTab === "pendle") {
+      setActiveTab("arb");
+      localStorage.setItem(TAB_STORAGE_KEY, "arb");
+      return;
+    }
     localStorage.setItem(TAB_STORAGE_KEY, activeTab);
   }, [activeTab]);
 
@@ -5918,9 +5923,11 @@ function App() {
     await refreshPortfolioPositions(settings.portfolio?.positions ?? []);
   }, [isRunning, refreshPortfolioPositions, settings.portfolio?.positions]);
 
-  const portfolioPositions = settings.portfolio?.positions ?? [];
-  const portfolioNotificationsEnabled = settings.portfolio?.notificationsEnabled ?? false;
-  const trackedPortfolioWallets = settings.portfolio?.wallets ?? [getDefaultPortfolioWallet()];
+  const portfolioPositions = IS_HOSTED_MODE ? [] : settings.portfolio?.positions ?? [];
+  const portfolioNotificationsEnabled = !IS_HOSTED_MODE && (settings.portfolio?.notificationsEnabled ?? false);
+  const trackedPortfolioWallets = IS_HOSTED_MODE
+    ? []
+    : settings.portfolio?.wallets ?? [getDefaultPortfolioWallet()];
   const nonEmptyPortfolioCountsByChain = useMemo(() => {
     const counts: Record<string, number> = {};
     Object.values(portfolioMap).forEach((snapshot) => {
