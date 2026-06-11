@@ -5789,6 +5789,10 @@ function App() {
 
   const refreshQuotes = useCallback(async () => {
     if (!isRunning) return false;
+    if (IS_HOSTED_MODE) {
+      await streamArbRefresh();
+      return false;
+    }
     try {
       const response = await fetch(`${ARB_SNAPSHOT_ENDPOINT}${hostedQuoteQuery}`, {
         method: "GET",
@@ -5804,19 +5808,15 @@ function App() {
       const nextRefreshing = Boolean(payload.refreshing || payload.stale);
       setIsArbSyncing(nextRefreshing);
       if (payload.stale && !payload.refreshing && !arbRefreshRequestInFlightRef.current) {
-        if (IS_HOSTED_MODE) {
-          void streamArbRefresh();
-        } else {
-          arbRefreshRequestInFlightRef.current = true;
-          fetch(`${ARB_REFRESH_ENDPOINT}${hostedQuoteQuery}`, {
-            method: "POST",
-            headers: { accept: "application/json" },
-          })
-            .catch(() => undefined)
-            .finally(() => {
-              arbRefreshRequestInFlightRef.current = false;
-            });
-        }
+        arbRefreshRequestInFlightRef.current = true;
+        fetch(`${ARB_REFRESH_ENDPOINT}${hostedQuoteQuery}`, {
+          method: "POST",
+          headers: { accept: "application/json" },
+        })
+          .catch(() => undefined)
+          .finally(() => {
+            arbRefreshRequestInFlightRef.current = false;
+          });
       }
       setArbError(null);
       return nextRefreshing;
