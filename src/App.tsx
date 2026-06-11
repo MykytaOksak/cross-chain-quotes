@@ -383,6 +383,7 @@ type TabId = "arb" | "arb-new" | "portfolio" | "pendle";
 const BASE_SETTINGS = baseConfig as unknown as Settings;
 const ARB_SNAPSHOT_ENDPOINT = "/api/shared/arb-snapshot";
 const ARB_REFRESH_ENDPOINT = "/api/cron/refresh-arb";
+const ARB_STREAM_ENDPOINT = "/api/shared/arb-stream";
 let pendleModulePromise: Promise<typeof import("./pendle")> | null = null;
 const BASE_ARB_SETTINGS: ArbSettings = {
   defaultAmount: BASE_SETTINGS.defaultAmount,
@@ -5507,6 +5508,83 @@ function App() {
     return () => clearInterval(timer);
   }, [pendleRuntimeById, pendleStrategies]);
 
+  const applyArbSnapshotPayload = useCallback((payload: Partial<ArbSnapshotResponse>) => {
+    if (payload.settings) {
+      setArbSettings(normalizeArbSettings(payload.settings));
+    }
+    if (payload.quoteMap) {
+      setQuoteMap(payload.quoteMap);
+    }
+    if (typeof payload.updatedAt === "number") {
+      setLastUpdated(payload.updatedAt);
+    }
+    setArbError(null);
+  }, []);
+
+  const streamArbRefresh = useCallback(async () => {
+    if (arbRefreshRequestInFlightRef.current) return;
+    arbRefreshRequestInFlightRef.current = true;
+    setIsArbSyncing(true);
+    try {
+      const response = await fetch(ARB_STREAM_ENDPOINT, {
+        method: "GET",
+        headers: { accept: "application/x-ndjson" },
+      });
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}`);
+      }
+      if (!response.body) {
+        throw new Error("Streaming response is not available");
+      }
+
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = "";
+      while (true) {
+        const { value, done } = await reader.read();
+        buffer += decoder.decode(value ?? new Uint8Array(), { stream: !done });
+        const lines = buffer.split("\n");
+        buffer = lines.pop() ?? "";
+        for (const line of lines) {
+          const trimmed = line.trim();
+          if (!trimmed) continue;
+          const payload = JSON.parse(trimmed) as Partial<ArbSnapshotResponse> & { error?: string };
+          if (payload.error) {
+            throw new Error(payload.error);
+          }
+          applyArbSnapshotPayload(payload);
+          setIsArbSyncing(Boolean(payload.refreshing || payload.stale));
+        }
+        if (done) break;
+      }
+
+      const finalLine = buffer.trim();
+      if (finalLine) {
+        const payload = JSON.parse(finalLine) as Partial<ArbSnapshotResponse> & { error?: string };
+        if (payload.error) {
+          throw new Error(payload.error);
+        }
+        applyArbSnapshotPayload(payload);
+        setIsArbSyncing(Boolean(payload.refreshing || payload.stale));
+      } else {
+        setIsArbSyncing(false);
+      }
+    } catch (error) {
+      try {
+        await fetch(ARB_REFRESH_ENDPOINT, {
+          method: "POST",
+          headers: { accept: "application/json" },
+        });
+      } catch {
+        // Polling will retry on the next cycle; keep the stream error visible.
+      }
+      setIsArbSyncing(false);
+      setArbError(error instanceof Error ? error.message : "Failed to stream Arb refresh");
+    } finally {
+      arbRefreshRequestInFlightRef.current = false;
+    }
+  }, [applyArbSnapshotPayload]);
+
   const refreshQuotes = useCallback(async () => {
     if (!isRunning) return false;
     try {
@@ -5520,21 +5598,23 @@ function App() {
       if (!response.ok || !payload.ok) {
         throw new Error(payload.error || `HTTP ${response.status}`);
       }
-      setArbSettings(normalizeArbSettings(payload.settings));
-      setQuoteMap(payload.quoteMap ?? {});
-      setLastUpdated(typeof payload.updatedAt === "number" ? payload.updatedAt : Date.now());
+      applyArbSnapshotPayload(payload);
       const nextRefreshing = Boolean(payload.refreshing || payload.stale);
       setIsArbSyncing(nextRefreshing);
       if (payload.stale && !payload.refreshing && !arbRefreshRequestInFlightRef.current) {
-        arbRefreshRequestInFlightRef.current = true;
-        fetch(ARB_REFRESH_ENDPOINT, {
-          method: "POST",
-          headers: { accept: "application/json" },
-        })
-          .catch(() => undefined)
-          .finally(() => {
-            arbRefreshRequestInFlightRef.current = false;
-          });
+        if (IS_HOSTED_MODE) {
+          void streamArbRefresh();
+        } else {
+          arbRefreshRequestInFlightRef.current = true;
+          fetch(ARB_REFRESH_ENDPOINT, {
+            method: "POST",
+            headers: { accept: "application/json" },
+          })
+            .catch(() => undefined)
+            .finally(() => {
+              arbRefreshRequestInFlightRef.current = false;
+            });
+        }
       }
       setArbError(null);
       return nextRefreshing;
@@ -5544,7 +5624,9 @@ function App() {
       return false;
     }
   }, [
+    applyArbSnapshotPayload,
     isRunning,
+    streamArbRefresh,
   ]);
 
   useEffect(() => {
