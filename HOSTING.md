@@ -23,7 +23,6 @@ The project includes Vercel API routes under `api/`:
 - `/api/shared/health`
 - `/api/shared/config`
 - `/api/shared/arb-snapshot`
-- `/api/cron/refresh-arb`
 - `/api/telegram/send-message`
 
 Quote snapshots need durable storage on Vercel. Connect Vercel KV or Upstash Redis and provide either of these env var pairs:
@@ -40,7 +39,7 @@ UPSTASH_REDIS_REST_URL=...
 UPSTASH_REDIS_REST_TOKEN=...
 ```
 
-`vercel.json` runs `/api/cron/refresh-arb` once per minute. The frontend reads the latest snapshot from `/api/shared/arb-snapshot`.
+On Vercel Hobby, Cron Jobs are limited to daily schedules, so this project does not require a cron job. The frontend reads `/api/shared/arb-snapshot`; that route refreshes stale quote snapshots on demand and stores the latest result in Redis/KV.
 
 Do not add Pendle private keys to Vercel for this hosted Arb-only version. Keep `.env.worker` local-only.
 
