@@ -3007,12 +3007,17 @@ select:focus {
 }
 
 @media (max-width: 720px) {
+  .app {
+    padding-left: 8px;
+    padding-right: 8px;
+  }
+
   .topbar {
     padding: 12px 0;
   }
 
   .topbar-inner {
-    padding: 0 16px;
+    padding: 0 8px;
   }
 
   .address-row {
