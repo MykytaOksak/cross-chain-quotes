@@ -1,9 +1,10 @@
-import { buildInitialArbSnapshot } from "../../server/arb-service.mjs";
+import { buildArbSnapshot, buildInitialArbSnapshot } from "../../server/arb-service.mjs";
 import { CONFIG_PATH } from "../_lib/config.mjs";
 import { sendJson } from "../_lib/http.mjs";
-import { getJson, setJson } from "../_lib/store.mjs";
+import { acquireLock, getJson, releaseLock, setJson } from "../_lib/store.mjs";
 
 const SNAPSHOT_KEY = "arb:snapshot";
+const LOCK_KEY = "arb:refresh:lock";
 const HOSTED_REFRESH_MS = 60_000;
 const REFRESHING_TTL_MS = 240_000;
 
@@ -26,6 +27,10 @@ function getPairIds(req) {
 
 function getSnapshotKey(pairIds) {
   return pairIds.length > 0 ? `${SNAPSHOT_KEY}:${pairIds.join(",")}` : SNAPSHOT_KEY;
+}
+
+function getLockKey(pairIds) {
+  return pairIds.length > 0 ? `${LOCK_KEY}:${pairIds.join(",")}` : LOCK_KEY;
 }
 
 function hasResolvedQuote(snapshot) {
@@ -64,7 +69,26 @@ export default async function handler(req, res) {
     await setJson(snapshotKey, snapshot);
   }
 
-  const stale = isSnapshotStale(snapshot);
+  let stale = isSnapshotStale(snapshot);
+  if (stale && pairIds.length > 0) {
+    const lockKey = getLockKey(pairIds);
+    const lockToken = await acquireLock(lockKey, 240);
+    if (lockToken) {
+      try {
+        snapshot = await buildArbSnapshot(CONFIG_PATH, {
+          pairIds,
+          previousQuoteMap: snapshot?.quoteMap ?? null,
+          onUpdate: async (partial) => {
+            await setJson(snapshotKey, { ...partial, refreshing: true });
+          },
+        });
+        await setJson(snapshotKey, snapshot);
+        stale = isSnapshotStale(snapshot);
+      } finally {
+        await releaseLock(lockKey, lockToken);
+      }
+    }
+  }
 
   sendJson(res, 200, {
     ok: true,
