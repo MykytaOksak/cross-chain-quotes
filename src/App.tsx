@@ -7105,6 +7105,18 @@ function App() {
           <section className="pair-section" key={pair.id}>
             <div className="table-card pair-table-card">
               <div className="pair-card-header">
+                <div className="pair-card-title-row">
+                  <span className="pair-table-title">{pairLabel}</span>
+                  {IS_HOSTED_MODE ? (
+                    <button
+                      type="button"
+                      className={`pair-enabled-toggle ${pairEnabled ? "enabled" : "disabled"}`}
+                      onClick={() => toggleHostedPairEnabled(pair.id)}
+                    >
+                      {pairEnabled ? "Disable" : "Enable"}
+                    </button>
+                  ) : null}
+                </div>
                 <button
                   className="pair-toggle pair-card-toggle"
                   onClick={() =>
@@ -7113,21 +7125,12 @@ function App() {
                       [pair.id]: !(prev[pair.id] ?? false),
                     }))
                   }
+                  aria-label={isCollapsed ? `Expand ${pairLabel}` : `Collapse ${pairLabel}`}
                 >
-                  <span className="pair-table-title">{pairLabel}</span>
                   <span className={`pair-toggle-icon ${isCollapsed ? "collapsed" : ""}`} aria-hidden="true">
                     ▾
                   </span>
                 </button>
-                {IS_HOSTED_MODE ? (
-                  <button
-                    type="button"
-                    className={`pair-enabled-toggle ${pairEnabled ? "enabled" : "disabled"}`}
-                    onClick={() => toggleHostedPairEnabled(pair.id)}
-                  >
-                    {pairEnabled ? "Disable" : "Enable"}
-                  </button>
-                ) : null}
               </div>
             {!isCollapsed && pairEnabled ? (
                 <div className="table-body">
