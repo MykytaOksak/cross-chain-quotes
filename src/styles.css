@@ -516,6 +516,13 @@ body {
   gap: 12px;
 }
 
+.pair-hosted-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  flex: 0 0 auto;
+}
+
 .pair-card-toggle {
   flex: 0 0 auto;
   justify-content: center;
@@ -542,6 +549,29 @@ body {
 .pair-enabled-toggle.disabled {
   color: var(--text-2);
   background: rgba(255, 255, 255, 0.04);
+}
+
+.pair-edit-toggle {
+  width: 32px;
+  height: 32px;
+  flex: 0 0 auto;
+  display: inline-grid;
+  place-items: center;
+  border-radius: 8px;
+  border: 1px solid var(--line);
+  background: var(--card);
+  color: var(--text-2);
+  cursor: pointer;
+}
+
+.pair-edit-toggle:hover {
+  color: var(--text-1);
+  border-color: rgb(111, 227, 206);
+}
+
+.pair-edit-toggle svg {
+  width: 16px;
+  height: 16px;
 }
 
 .pair-disabled-body {
@@ -2405,6 +2435,83 @@ body {
   font-size: 18px;
   font-weight: 600;
   color: var(--text-1);
+}
+
+.pair-settings-modal {
+  width: min(560px, 100%);
+}
+
+.pair-settings-subtitle {
+  margin-top: 4px;
+  color: var(--text-2);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.pair-settings-content {
+  padding: 22px 24px 24px;
+  display: grid;
+  gap: 18px;
+  overflow: auto;
+}
+
+.pair-settings-field {
+  display: grid;
+  gap: 8px;
+  color: var(--text-2);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.pair-settings-field input {
+  width: 100%;
+  min-height: 42px;
+  border-radius: 8px;
+  border: 1px solid var(--line);
+  background: var(--card);
+  color: var(--text-1);
+  padding: 0 12px;
+  font: inherit;
+}
+
+.pair-settings-title {
+  color: var(--text-1);
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.pair-network-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 10px;
+}
+
+.pair-network-option {
+  min-height: 40px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0 12px;
+  border-radius: 8px;
+  border: 1px solid var(--line);
+  background: var(--card);
+  color: var(--text-1);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.pair-network-option input {
+  width: 16px;
+  height: 16px;
+  accent-color: rgb(82, 196, 178);
+}
+
+.pair-settings-actions {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 10px;
+  padding-top: 4px;
 }
 
 .settings-layout {

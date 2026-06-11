@@ -1735,6 +1735,37 @@ function filterSettingsForPairIds(settings, pairIds) {
   };
 }
 
+function applyPairOverrides(settings, pairOverrides) {
+  if (!pairOverrides || typeof pairOverrides !== "object") return settings;
+  const networkKeys = new Set((Array.isArray(settings.networks) ? settings.networks : []).map((net) => net.chain));
+  return {
+    ...settings,
+    pairs: (Array.isArray(settings.pairs) ? settings.pairs : []).map((pair) => {
+      const override = pairOverrides[pair.id];
+      if (!override || typeof override !== "object") return pair;
+      const next = { ...pair };
+      const amount = String(override.amount ?? "").trim();
+      if (amount && Number.isFinite(Number(amount)) && Number(amount) > 0) {
+        next.amount = amount;
+      }
+      if (override.networks && typeof override.networks === "object") {
+        const networks = { ...pair.networks };
+        Object.entries(override.networks).forEach(([chain, enabled]) => {
+          if (networkKeys.has(chain)) {
+            networks[chain] = Boolean(enabled);
+          }
+        });
+        next.networks = networks;
+      }
+      return next;
+    }),
+  };
+}
+
+function prepareSettings(settings, options = {}) {
+  return applyPairOverrides(filterSettingsForPairIds(settings, options.pairIds), options.pairOverrides);
+}
+
 function prepareArbSnapshotState(settings, previousQuoteMap = null) {
   const tokensById = createTokensById(settings);
   const quoteMap = {};
@@ -1784,13 +1815,13 @@ function prepareArbSnapshotState(settings, previousQuoteMap = null) {
 }
 
 export async function buildInitialArbSnapshot(configPath, options = {}) {
-  const settings = filterSettingsForPairIds(await readConfigJson(configPath), options.pairIds);
+  const settings = prepareSettings(await readConfigJson(configPath), options);
   const { quoteMap } = prepareArbSnapshotState(settings);
   return createSnapshotPayload(settings, quoteMap);
 }
 
 export async function buildArbSnapshot(configPath, options = {}) {
-  const settings = filterSettingsForPairIds(await readConfigJson(configPath), options.pairIds);
+  const settings = prepareSettings(await readConfigJson(configPath), options);
   const { onUpdate, previousQuoteMap = null } = options;
   const { quoteMap, tasks } = prepareArbSnapshotState(settings, previousQuoteMap);
   const publishSnapshot = () => {

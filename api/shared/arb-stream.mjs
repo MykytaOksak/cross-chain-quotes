@@ -22,8 +22,44 @@ function getPairIds(req) {
   ).sort();
 }
 
-function getScopedKey(baseKey, pairIds) {
-  return pairIds.length > 0 ? `${baseKey}:${pairIds.join(",")}` : baseKey;
+function getPairOverrides(req) {
+  const url = new URL(req.url ?? "", `https://${req.headers.host || "localhost"}`);
+  const raw = url.searchParams.get("overrides") ?? "";
+  if (!raw) return {};
+  try {
+    const parsed = JSON.parse(raw);
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return {};
+    const overrides = {};
+    Object.entries(parsed).forEach(([pairId, value]) => {
+      if (!/^[a-z0-9-]+$/i.test(pairId) || !value || typeof value !== "object" || Array.isArray(value)) return;
+      const item = {};
+      const amount = String(value.amount ?? "").trim();
+      if (amount && Number.isFinite(Number(amount)) && Number(amount) > 0) item.amount = amount;
+      if (value.networks && typeof value.networks === "object" && !Array.isArray(value.networks)) {
+        const networks = {};
+        Object.entries(value.networks).forEach(([chain, enabled]) => {
+          if (/^[a-z0-9-]+$/i.test(chain)) networks[chain] = Boolean(enabled);
+        });
+        if (Object.keys(networks).length > 0) item.networks = networks;
+      }
+      if (Object.keys(item).length > 0) overrides[pairId] = item;
+    });
+    return overrides;
+  } catch {
+    return {};
+  }
+}
+
+function getOverridesKey(pairOverrides) {
+  const raw = JSON.stringify(pairOverrides ?? {});
+  if (raw === "{}") return "";
+  return Buffer.from(raw).toString("base64url");
+}
+
+function getScopedKey(baseKey, pairIds, pairOverrides) {
+  const pairScope = pairIds.length > 0 ? `:${pairIds.join(",")}` : "";
+  const overrideScope = getOverridesKey(pairOverrides);
+  return overrideScope ? `${baseKey}${pairScope}:o:${overrideScope}` : `${baseKey}${pairScope}`;
 }
 
 function writeSnapshot(res, payload) {
@@ -44,8 +80,9 @@ export default async function handler(req, res) {
   res.setHeader("x-accel-buffering", "no");
 
   const pairIds = getPairIds(req);
-  const snapshotKey = getScopedKey(SNAPSHOT_KEY, pairIds);
-  const lockKey = getScopedKey(LOCK_KEY, pairIds);
+  const pairOverrides = getPairOverrides(req);
+  const snapshotKey = getScopedKey(SNAPSHOT_KEY, pairIds, pairOverrides);
+  const lockKey = getScopedKey(LOCK_KEY, pairIds, pairOverrides);
   const lockToken = await acquireLock(lockKey, 240);
   if (!lockToken) {
     const snapshot = await getJson(snapshotKey);
@@ -68,6 +105,7 @@ export default async function handler(req, res) {
     const previous = await getJson(snapshotKey);
     const snapshot = await buildArbSnapshot(CONFIG_PATH, {
       pairIds,
+      pairOverrides,
       previousQuoteMap: previous?.quoteMap ?? null,
       onUpdate: async (partial) => {
         const next = { ...partial, refreshing: true };

@@ -25,12 +25,50 @@ function getPairIds(req) {
   ).sort();
 }
 
-function getSnapshotKey(pairIds) {
-  return pairIds.length > 0 ? `${SNAPSHOT_KEY}:${pairIds.join(",")}` : SNAPSHOT_KEY;
+function getPairOverrides(req) {
+  const url = new URL(req.url ?? "", `https://${req.headers.host || "localhost"}`);
+  const raw = url.searchParams.get("overrides") ?? "";
+  if (!raw) return {};
+  try {
+    const parsed = JSON.parse(raw);
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return {};
+    const overrides = {};
+    Object.entries(parsed).forEach(([pairId, value]) => {
+      if (!/^[a-z0-9-]+$/i.test(pairId) || !value || typeof value !== "object" || Array.isArray(value)) return;
+      const item = {};
+      const amount = String(value.amount ?? "").trim();
+      if (amount && Number.isFinite(Number(amount)) && Number(amount) > 0) item.amount = amount;
+      if (value.networks && typeof value.networks === "object" && !Array.isArray(value.networks)) {
+        const networks = {};
+        Object.entries(value.networks).forEach(([chain, enabled]) => {
+          if (/^[a-z0-9-]+$/i.test(chain)) networks[chain] = Boolean(enabled);
+        });
+        if (Object.keys(networks).length > 0) item.networks = networks;
+      }
+      if (Object.keys(item).length > 0) overrides[pairId] = item;
+    });
+    return overrides;
+  } catch {
+    return {};
+  }
 }
 
-function getLockKey(pairIds) {
-  return pairIds.length > 0 ? `${LOCK_KEY}:${pairIds.join(",")}` : LOCK_KEY;
+function getOverridesKey(pairOverrides) {
+  const raw = JSON.stringify(pairOverrides ?? {});
+  if (raw === "{}") return "";
+  return Buffer.from(raw).toString("base64url");
+}
+
+function getSnapshotKey(pairIds, pairOverrides) {
+  const pairScope = pairIds.length > 0 ? `:${pairIds.join(",")}` : "";
+  const overrideScope = getOverridesKey(pairOverrides);
+  return overrideScope ? `${SNAPSHOT_KEY}${pairScope}:o:${overrideScope}` : `${SNAPSHOT_KEY}${pairScope}`;
+}
+
+function getLockKey(pairIds, pairOverrides) {
+  const pairScope = pairIds.length > 0 ? `:${pairIds.join(",")}` : "";
+  const overrideScope = getOverridesKey(pairOverrides);
+  return overrideScope ? `${LOCK_KEY}${pairScope}:o:${overrideScope}` : `${LOCK_KEY}${pairScope}`;
 }
 
 function hasResolvedQuote(snapshot) {
@@ -62,21 +100,23 @@ export default async function handler(req, res) {
   }
 
   const pairIds = getPairIds(req);
-  const snapshotKey = getSnapshotKey(pairIds);
+  const pairOverrides = getPairOverrides(req);
+  const snapshotKey = getSnapshotKey(pairIds, pairOverrides);
   let snapshot = await getJson(snapshotKey);
   if (!snapshot) {
-    snapshot = await buildInitialArbSnapshot(CONFIG_PATH, { pairIds });
+    snapshot = await buildInitialArbSnapshot(CONFIG_PATH, { pairIds, pairOverrides });
     await setJson(snapshotKey, snapshot);
   }
 
   let stale = isSnapshotStale(snapshot);
   if (stale && pairIds.length > 0) {
-    const lockKey = getLockKey(pairIds);
+    const lockKey = getLockKey(pairIds, pairOverrides);
     const lockToken = await acquireLock(lockKey, 240);
     if (lockToken) {
       try {
         snapshot = await buildArbSnapshot(CONFIG_PATH, {
           pairIds,
+          pairOverrides,
           previousQuoteMap: snapshot?.quoteMap ?? null,
           onUpdate: async (partial) => {
             await setJson(snapshotKey, { ...partial, refreshing: true });

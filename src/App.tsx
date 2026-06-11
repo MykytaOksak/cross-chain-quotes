@@ -402,7 +402,13 @@ const THEME_STORAGE_KEY = "cca.theme.v1";
 const TAB_STORAGE_KEY = "cca.tab.v1";
 const NOTIFICATIONS_STORAGE_KEY = "cca.notifications.v1";
 const HOSTED_ENABLED_PAIRS_STORAGE_KEY = "cca.hosted.enabledPairs.v1";
+const HOSTED_PAIR_OVERRIDES_STORAGE_KEY = "cca.hosted.pairOverrides.v1";
 const HOSTED_DEFAULT_ENABLED_PAIR_IDS = ["usde-usdc"];
+type HostedPairOverride = {
+  amount?: string;
+  networks?: Record<string, boolean>;
+};
+type HostedPairOverrides = Record<string, HostedPairOverride>;
 type ThemeMode = "system" | "dark" | "light";
 type TabId = "arb" | "arb-new" | "portfolio" | "pendle";
 const BASE_SETTINGS = baseConfig as unknown as Settings;
@@ -542,6 +548,55 @@ function loadHostedEnabledPairIds(): string[] {
   } catch {
     return HOSTED_DEFAULT_ENABLED_PAIR_IDS;
   }
+}
+
+function sanitizeHostedPairOverrides(value: unknown): HostedPairOverrides {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return {};
+  const overrides: HostedPairOverrides = {};
+  Object.entries(value as Record<string, unknown>).forEach(([pairId, rawOverride]) => {
+    if (!/^[a-z0-9-]+$/i.test(pairId) || !rawOverride || typeof rawOverride !== "object" || Array.isArray(rawOverride)) {
+      return;
+    }
+    const override = rawOverride as HostedPairOverride;
+    const next: HostedPairOverride = {};
+    const amount = String(override.amount ?? "").trim();
+    if (amount && Number.isFinite(Number(amount)) && Number(amount) > 0) {
+      next.amount = amount;
+    }
+    if (override.networks && typeof override.networks === "object" && !Array.isArray(override.networks)) {
+      const networks: Record<string, boolean> = {};
+      Object.entries(override.networks).forEach(([chain, enabled]) => {
+        if (/^[a-z0-9-]+$/i.test(chain)) networks[chain] = Boolean(enabled);
+      });
+      if (Object.keys(networks).length > 0) next.networks = networks;
+    }
+    if (Object.keys(next).length > 0) overrides[pairId] = next;
+  });
+  return overrides;
+}
+
+function loadHostedPairOverrides(): HostedPairOverrides {
+  if (!IS_HOSTED_MODE || typeof window === "undefined") return {};
+  try {
+    const raw = localStorage.getItem(HOSTED_PAIR_OVERRIDES_STORAGE_KEY);
+    if (!raw) return {};
+    return sanitizeHostedPairOverrides(JSON.parse(raw));
+  } catch {
+    return {};
+  }
+}
+
+function applyHostedPairOverridesToPairs(pairs: PairConfig[], overrides: HostedPairOverrides): PairConfig[] {
+  if (!IS_HOSTED_MODE || Object.keys(overrides).length === 0) return pairs;
+  return pairs.map((pair) => {
+    const override = overrides[pair.id];
+    if (!override) return pair;
+    return {
+      ...pair,
+      amount: override.amount ?? pair.amount,
+      networks: override.networks ? { ...pair.networks, ...override.networks } : pair.networks,
+    };
+  });
 }
 
 type PersistedNotifications = {
@@ -4495,6 +4550,8 @@ function App() {
   const [selectedArbPairId, setSelectedArbPairId] = useState<string | null>(null);
   const [selectedArbNewPairId, setSelectedArbNewPairId] = useState<string | null>(null);
   const [hostedEnabledPairIds, setHostedEnabledPairIds] = useState<string[]>(() => loadHostedEnabledPairIds());
+  const [hostedPairOverrides, setHostedPairOverrides] = useState<HostedPairOverrides>(() => loadHostedPairOverrides());
+  const [editingHostedPairId, setEditingHostedPairId] = useState<string | null>(null);
   const [quoteMap, setQuoteMap] = useState<QuoteMap>({});
   const [lastUpdated, setLastUpdated] = useState<number | null>(null);
   const [arbError, setArbError] = useState<string | null>(null);
@@ -4555,6 +4612,11 @@ function App() {
     if (!IS_HOSTED_MODE || typeof window === "undefined") return;
     localStorage.setItem(HOSTED_ENABLED_PAIRS_STORAGE_KEY, JSON.stringify(hostedEnabledPairIds));
   }, [hostedEnabledPairIds]);
+
+  useEffect(() => {
+    if (!IS_HOSTED_MODE || typeof window === "undefined") return;
+    localStorage.setItem(HOSTED_PAIR_OVERRIDES_STORAGE_KEY, JSON.stringify(hostedPairOverrides));
+  }, [hostedPairOverrides]);
 
   const toggleHostedPairEnabled = useCallback((pairId: string) => {
     if (!IS_HOSTED_MODE) return;
@@ -4677,7 +4739,10 @@ function App() {
 
   const networks = useMemo(() => settings.networks ?? [], [settings.networks]);
   const arbNetworks = useMemo(() => arbSettings.networks ?? [], [arbSettings.networks]);
-  const allArbPairs = useMemo(() => arbSettings.pairs ?? [], [arbSettings.pairs]);
+  const allArbPairs = useMemo(
+    () => applyHostedPairOverridesToPairs(arbSettings.pairs ?? [], hostedPairOverrides),
+    [arbSettings.pairs, hostedPairOverrides]
+  );
   const hostedEnabledPairSet = useMemo(() => new Set(hostedEnabledPairIds), [hostedEnabledPairIds]);
   const isHostedPairEnabled = useCallback(
     (pairId: string) => !IS_HOSTED_MODE || hostedEnabledPairSet.has(pairId),
@@ -4693,8 +4758,23 @@ function App() {
       .map((id) => id.trim())
       .filter(Boolean)
       .sort();
-    return pairIds.length > 0 ? `?pairs=${encodeURIComponent(pairIds.join(","))}` : "";
-  }, [hostedEnabledPairIds]);
+    const params = new URLSearchParams();
+    if (pairIds.length > 0) {
+      params.set("pairs", pairIds.join(","));
+    }
+    const overrides = sanitizeHostedPairOverrides(
+      pairIds.reduce<HostedPairOverrides>((acc, pairId) => {
+        const override = hostedPairOverrides[pairId];
+        if (override) acc[pairId] = override;
+        return acc;
+      }, {})
+    );
+    if (Object.keys(overrides).length > 0) {
+      params.set("overrides", JSON.stringify(overrides));
+    }
+    const query = params.toString();
+    return query ? `?${query}` : "";
+  }, [hostedEnabledPairIds, hostedPairOverrides]);
   const pendle = useMemo(() => {
     return (
       settings.pendle ?? {
@@ -5045,6 +5125,71 @@ function App() {
     }),
     [arbTokensById]
   );
+
+  const editingHostedPairBase = useMemo(
+    () => (editingHostedPairId ? (arbSettings.pairs ?? []).find((pair) => pair.id === editingHostedPairId) ?? null : null),
+    [arbSettings.pairs, editingHostedPairId]
+  );
+
+  const editingHostedPair = useMemo(
+    () => (editingHostedPairId ? allArbPairs.find((pair) => pair.id === editingHostedPairId) ?? null : null),
+    [allArbPairs, editingHostedPairId]
+  );
+
+  const editingHostedPairTokens = useMemo(
+    () => (editingHostedPair ? getPairTokens(editingHostedPair) : { base: undefined, quote: undefined }),
+    [editingHostedPair, getPairTokens]
+  );
+
+  const editingHostedPairLabel = editingHostedPair
+    ? `${editingHostedPairTokens.base?.symbol ?? editingHostedPair.baseTokenId}/${editingHostedPairTokens.quote?.symbol ?? editingHostedPair.quoteTokenId}`
+    : "";
+
+  const editableHostedPairNetworks = useMemo(() => {
+    if (!editingHostedPairBase) return [];
+    return arbNetworks.filter((net) => editingHostedPairBase.networks?.[net.chain]);
+  }, [arbNetworks, editingHostedPairBase]);
+
+  const updateHostedPairAmount = useCallback((pairId: string, amount: string) => {
+    if (!IS_HOSTED_MODE) return;
+    setHostedPairOverrides((prev) => ({
+      ...prev,
+      [pairId]: {
+        ...(prev[pairId] ?? {}),
+        amount,
+      },
+    }));
+  }, []);
+
+  const updateHostedPairNetwork = useCallback(
+    (pairId: string, chain: string, enabled: boolean) => {
+      if (!IS_HOSTED_MODE) return;
+      const basePair = (arbSettings.pairs ?? []).find((pair) => pair.id === pairId);
+      setHostedPairOverrides((prev) =>
+        sanitizeHostedPairOverrides({
+          ...prev,
+          [pairId]: {
+            ...(prev[pairId] ?? {}),
+            networks: {
+              ...(basePair?.networks ?? {}),
+              ...(prev[pairId]?.networks ?? {}),
+              [chain]: enabled,
+            },
+          },
+        })
+      );
+    },
+    [arbSettings.pairs]
+  );
+
+  const resetHostedPairOverride = useCallback((pairId: string) => {
+    if (!IS_HOSTED_MODE) return;
+    setHostedPairOverrides((prev) => {
+      const next = { ...prev };
+      delete next[pairId];
+      return next;
+    });
+  }, []);
 
   const computeUsdcUsdtRateFromQuotes = useCallback(
     (pair: PairConfig, quotes: VariantQuote[]): number | null => {
@@ -6685,6 +6830,7 @@ function App() {
     localStorage.removeItem(NOTIFICATIONS_STORAGE_KEY);
     localStorage.removeItem(TAB_STORAGE_KEY);
     localStorage.removeItem(HOSTED_ENABLED_PAIRS_STORAGE_KEY);
+    localStorage.removeItem(HOSTED_PAIR_OVERRIDES_STORAGE_KEY);
     window.location.reload();
   }, []);
 
@@ -7224,13 +7370,40 @@ function App() {
                 <div className="pair-card-title-row">
                   <span className="pair-table-title">{pairLabel}</span>
                   {IS_HOSTED_MODE ? (
-                    <button
-                      type="button"
-                      className={`pair-enabled-toggle ${pairEnabled ? "enabled" : "disabled"}`}
-                      onClick={() => toggleHostedPairEnabled(pair.id)}
-                    >
-                      {pairEnabled ? "Disable" : "Enable"}
-                    </button>
+                    <div className="pair-hosted-actions">
+                      <button
+                        type="button"
+                        className={`pair-enabled-toggle ${pairEnabled ? "enabled" : "disabled"}`}
+                        onClick={() => toggleHostedPairEnabled(pair.id)}
+                      >
+                        {pairEnabled ? "Disable" : "Enable"}
+                      </button>
+                      <button
+                        type="button"
+                        className="pair-edit-toggle"
+                        onClick={() => setEditingHostedPairId(pair.id)}
+                        aria-label={`Edit ${pairLabel} settings`}
+                        title="Edit pair settings"
+                      >
+                        <svg viewBox="0 0 24 24" aria-hidden="true">
+                          <path
+                            d="M4 20h4.4L19.2 9.2a2.2 2.2 0 0 0 0-3.1l-1.3-1.3a2.2 2.2 0 0 0-3.1 0L4 15.6V20Z"
+                            fill="none"
+                            stroke="currentColor"
+                            strokeWidth="1.8"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                          />
+                          <path
+                            d="m13.8 5.8 4.4 4.4"
+                            fill="none"
+                            stroke="currentColor"
+                            strokeWidth="1.8"
+                            strokeLinecap="round"
+                          />
+                        </svg>
+                      </button>
+                    </div>
                   ) : null}
                 </div>
                 <button
@@ -8369,6 +8542,57 @@ function App() {
           </section>
         </>
       )}
+
+      {IS_HOSTED_MODE && editingHostedPair ? (
+        <div className="settings-overlay" onClick={() => setEditingHostedPairId(null)}>
+          <div className="settings pair-settings-modal" onClick={(event) => event.stopPropagation()}>
+            <div className="settings-header">
+              <div>
+                <div className="settings-heading">{editingHostedPairLabel}</div>
+                <div className="pair-settings-subtitle">Pair settings</div>
+              </div>
+              <button className="close" onClick={() => setEditingHostedPairId(null)} aria-label="Close pair settings">
+                ×
+              </button>
+            </div>
+            <div className="pair-settings-content">
+              <label className="pair-settings-field">
+                Amount
+                <input
+                  type="number"
+                  min="0"
+                  step="any"
+                  value={editingHostedPair.amount ?? ""}
+                  onChange={(event) => updateHostedPairAmount(editingHostedPair.id, event.target.value)}
+                />
+              </label>
+              <div className="pair-settings-title">Active networks</div>
+              <div className="pair-network-list">
+                {editableHostedPairNetworks.map((net) => (
+                  <label className="pair-network-option" key={net.chain}>
+                    <input
+                      type="checkbox"
+                      checked={Boolean(editingHostedPair.networks?.[net.chain])}
+                      onChange={(event) =>
+                        updateHostedPairNetwork(editingHostedPair.id, net.chain, event.target.checked)
+                      }
+                    />
+                    <span>{net.name}</span>
+                  </label>
+                ))}
+              </div>
+              <div className="pair-settings-actions">
+                <button type="button" className="settings-reset-btn" onClick={() => resetHostedPairOverride(editingHostedPair.id)}>
+                  Reset pair
+                </button>
+                <button type="button" className="pair-enabled-toggle enabled" onClick={() => setEditingHostedPairId(null)}>
+                  Done
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      ) : null}
 
       {showSettings ? (
         <div className="settings-overlay" onClick={() => setShowSettings(false)}>
