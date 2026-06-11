@@ -1829,7 +1829,7 @@ body {
 }
 
 .arb-pair-filter-chip.active {
-  background: var(--bg-1);
+  background: var(--card);
   color: var(--text-1);
   border-color: rgb(111, 227, 206);
   box-shadow: 0 0 0 1px rgba(111, 227, 206, 0.18);
@@ -1842,7 +1842,7 @@ body {
 }
 
 .arb-pair-filter-chip.disabled.active {
-  background: var(--card);
+  background: var(--card-solid);
   border-color: var(--line);
   box-shadow: none;
 }
@@ -1854,7 +1854,7 @@ body {
 }
 
 :root[data-theme="light"] .arb-pair-filter-chip.disabled.active {
-  background: #ffffff;
+  background: #f8f8f8;
   border-color: rgba(0, 0, 0, 0.18);
   color: #6f6f6f;
 }
