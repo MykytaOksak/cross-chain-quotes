@@ -11,6 +11,23 @@ export const config = {
   maxDuration: 300,
 };
 
+function getPairIds(req) {
+  const url = new URL(req.url ?? "", `https://${req.headers.host || "localhost"}`);
+  const raw = url.searchParams.get("pairs") ?? "";
+  return Array.from(
+    new Set(
+      raw
+        .split(",")
+        .map((id) => id.trim())
+        .filter((id) => /^[a-z0-9-]+$/i.test(id))
+    )
+  ).sort();
+}
+
+function getSnapshotKey(pairIds) {
+  return pairIds.length > 0 ? `${SNAPSHOT_KEY}:${pairIds.join(",")}` : SNAPSHOT_KEY;
+}
+
 function hasResolvedQuote(snapshot) {
   const pairs = snapshot?.quoteMap && typeof snapshot.quoteMap === "object" ? Object.values(snapshot.quoteMap) : [];
   return pairs.some((byNetwork) => {
@@ -39,10 +56,12 @@ export default async function handler(req, res) {
     return;
   }
 
-  let snapshot = await getJson(SNAPSHOT_KEY);
+  const pairIds = getPairIds(req);
+  const snapshotKey = getSnapshotKey(pairIds);
+  let snapshot = await getJson(snapshotKey);
   if (!snapshot) {
-    snapshot = await buildInitialArbSnapshot(CONFIG_PATH);
-    await setJson(SNAPSHOT_KEY, snapshot);
+    snapshot = await buildInitialArbSnapshot(CONFIG_PATH, { pairIds });
+    await setJson(snapshotKey, snapshot);
   }
 
   const stale = isSnapshotStale(snapshot);

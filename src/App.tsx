@@ -4662,6 +4662,14 @@ function App() {
     () => (IS_HOSTED_MODE ? allArbPairs.filter((pair) => hostedEnabledPairSet.has(pair.id)) : allArbPairs),
     [allArbPairs, hostedEnabledPairSet]
   );
+  const hostedQuoteQuery = useMemo(() => {
+    if (!IS_HOSTED_MODE) return "";
+    const pairIds = hostedEnabledPairIds
+      .map((id) => id.trim())
+      .filter(Boolean)
+      .sort();
+    return pairIds.length > 0 ? `?pairs=${encodeURIComponent(pairIds.join(","))}` : "";
+  }, [hostedEnabledPairIds]);
   const pendle = useMemo(() => {
     return (
       settings.pendle ?? {
@@ -5509,7 +5517,7 @@ function App() {
   }, [pendleRuntimeById, pendleStrategies]);
 
   const applyArbSnapshotPayload = useCallback((payload: Partial<ArbSnapshotResponse>) => {
-    if (payload.settings) {
+    if (payload.settings && !IS_HOSTED_MODE) {
       setArbSettings(normalizeArbSettings(payload.settings));
     }
     if (payload.quoteMap) {
@@ -5526,7 +5534,7 @@ function App() {
     arbRefreshRequestInFlightRef.current = true;
     setIsArbSyncing(true);
     try {
-      const response = await fetch(ARB_STREAM_ENDPOINT, {
+      const response = await fetch(`${ARB_STREAM_ENDPOINT}${hostedQuoteQuery}`, {
         method: "GET",
         headers: { accept: "application/x-ndjson" },
       });
@@ -5571,7 +5579,7 @@ function App() {
       }
     } catch (error) {
       try {
-        await fetch(ARB_REFRESH_ENDPOINT, {
+        await fetch(`${ARB_REFRESH_ENDPOINT}${hostedQuoteQuery}`, {
           method: "POST",
           headers: { accept: "application/json" },
         });
@@ -5583,12 +5591,12 @@ function App() {
     } finally {
       arbRefreshRequestInFlightRef.current = false;
     }
-  }, [applyArbSnapshotPayload]);
+  }, [applyArbSnapshotPayload, hostedQuoteQuery]);
 
   const refreshQuotes = useCallback(async () => {
     if (!isRunning) return false;
     try {
-      const response = await fetch(ARB_SNAPSHOT_ENDPOINT, {
+      const response = await fetch(`${ARB_SNAPSHOT_ENDPOINT}${hostedQuoteQuery}`, {
         method: "GET",
         headers: {
           accept: "application/json",
@@ -5606,7 +5614,7 @@ function App() {
           void streamArbRefresh();
         } else {
           arbRefreshRequestInFlightRef.current = true;
-          fetch(ARB_REFRESH_ENDPOINT, {
+          fetch(`${ARB_REFRESH_ENDPOINT}${hostedQuoteQuery}`, {
             method: "POST",
             headers: { accept: "application/json" },
           })
@@ -5625,6 +5633,7 @@ function App() {
     }
   }, [
     applyArbSnapshotPayload,
+    hostedQuoteQuery,
     isRunning,
     streamArbRefresh,
   ]);

@@ -9,6 +9,23 @@ export const config = {
 const SNAPSHOT_KEY = "arb:snapshot";
 const LOCK_KEY = "arb:refresh:lock";
 
+function getPairIds(req) {
+  const url = new URL(req.url ?? "", `https://${req.headers.host || "localhost"}`);
+  const raw = url.searchParams.get("pairs") ?? "";
+  return Array.from(
+    new Set(
+      raw
+        .split(",")
+        .map((id) => id.trim())
+        .filter((id) => /^[a-z0-9-]+$/i.test(id))
+    )
+  ).sort();
+}
+
+function getScopedKey(baseKey, pairIds) {
+  return pairIds.length > 0 ? `${baseKey}:${pairIds.join(",")}` : baseKey;
+}
+
 function writeSnapshot(res, payload) {
   res.write(`${JSON.stringify({ ok: true, ...payload })}\n`);
 }
@@ -26,9 +43,12 @@ export default async function handler(req, res) {
   res.setHeader("cache-control", "no-cache, no-transform");
   res.setHeader("x-accel-buffering", "no");
 
-  const lockToken = await acquireLock(LOCK_KEY, 240);
+  const pairIds = getPairIds(req);
+  const snapshotKey = getScopedKey(SNAPSHOT_KEY, pairIds);
+  const lockKey = getScopedKey(LOCK_KEY, pairIds);
+  const lockToken = await acquireLock(lockKey, 240);
   if (!lockToken) {
-    const snapshot = await getJson(SNAPSHOT_KEY);
+    const snapshot = await getJson(snapshotKey);
     writeSnapshot(res, {
       ...(snapshot ?? {}),
       refreshing: true,
@@ -45,18 +65,19 @@ export default async function handler(req, res) {
   });
 
   try {
-    const previous = await getJson(SNAPSHOT_KEY);
+    const previous = await getJson(snapshotKey);
     const snapshot = await buildArbSnapshot(CONFIG_PATH, {
+      pairIds,
       previousQuoteMap: previous?.quoteMap ?? null,
       onUpdate: async (partial) => {
         const next = { ...partial, refreshing: true };
-        await setJson(SNAPSHOT_KEY, next);
+        await setJson(snapshotKey, next);
         if (!closed) {
           writeSnapshot(res, next);
         }
       },
     });
-    await setJson(SNAPSHOT_KEY, snapshot);
+    await setJson(snapshotKey, snapshot);
     if (!closed) {
       writeSnapshot(res, { ...snapshot, refreshing: false, stale: false });
     }
@@ -68,7 +89,7 @@ export default async function handler(req, res) {
       });
     }
   } finally {
-    await releaseLock(LOCK_KEY, lockToken);
+    await releaseLock(lockKey, lockToken);
     if (!closed) {
       res.end();
     }

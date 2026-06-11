@@ -1688,6 +1688,16 @@ function createSnapshotPayload(settings, quoteMap) {
   };
 }
 
+function filterSettingsForPairIds(settings, pairIds) {
+  if (!Array.isArray(pairIds) || pairIds.length === 0) return settings;
+  const allowedPairIds = new Set(pairIds.map((id) => String(id ?? "").trim()).filter(Boolean));
+  if (allowedPairIds.size === 0) return settings;
+  return {
+    ...settings,
+    pairs: (Array.isArray(settings.pairs) ? settings.pairs : []).filter((pair) => allowedPairIds.has(pair.id)),
+  };
+}
+
 function prepareArbSnapshotState(settings, previousQuoteMap = null) {
   const tokensById = createTokensById(settings);
   const quoteMap = {};
@@ -1736,14 +1746,14 @@ function prepareArbSnapshotState(settings, previousQuoteMap = null) {
   return { quoteMap, tasks };
 }
 
-export async function buildInitialArbSnapshot(configPath) {
-  const settings = await readConfigJson(configPath);
+export async function buildInitialArbSnapshot(configPath, options = {}) {
+  const settings = filterSettingsForPairIds(await readConfigJson(configPath), options.pairIds);
   const { quoteMap } = prepareArbSnapshotState(settings);
   return createSnapshotPayload(settings, quoteMap);
 }
 
 export async function buildArbSnapshot(configPath, options = {}) {
-  const settings = await readConfigJson(configPath);
+  const settings = filterSettingsForPairIds(await readConfigJson(configPath), options.pairIds);
   const { onUpdate, previousQuoteMap = null } = options;
   const { quoteMap, tasks } = prepareArbSnapshotState(settings, previousQuoteMap);
   const publishSnapshot = () => {
