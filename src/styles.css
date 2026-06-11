@@ -155,19 +155,10 @@ body {
   position: relative;
 }
 
-.bell-icon-image {
+.bell-icon {
   width: 18px;
   height: 18px;
   display: block;
-  background: currentColor;
-  -webkit-mask-image: var(--icon-url);
-  -webkit-mask-repeat: no-repeat;
-  -webkit-mask-position: center;
-  -webkit-mask-size: 225%;
-  mask-image: var(--icon-url);
-  mask-repeat: no-repeat;
-  mask-position: center;
-  mask-size: 225%;
 }
 
 .bell-button.active,

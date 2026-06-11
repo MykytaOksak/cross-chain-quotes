@@ -18,7 +18,6 @@ import polygonLogoUrl from "./assets/networks/polygon.svg";
 import solanaLogoUrl from "./assets/networks/solana.svg";
 import sonicLogoUrl from "./assets/networks/sonic.svg";
 import unichainLogoUrl from "./assets/networks/unichain.svg";
-import notificationBellUrl from "./assets/notification.svg";
 import { IS_HOSTED_MODE } from "./modes";
 import type { PendleMakerOrder, PendleMarketInfo } from "./pendle";
 
@@ -6667,11 +6666,23 @@ function App() {
                   setShowNotificationsMenu((prev) => !prev);
                 }}
               >
-                <span
-                  aria-hidden="true"
-                  className="bell-icon-image"
-                  style={{ "--icon-url": `url(${notificationBellUrl})` } as React.CSSProperties}
-                />
+                <svg className="bell-icon" viewBox="0 0 24 24" aria-hidden="true">
+                  <path
+                    d="M15 17H9m9-2.5c-.9-.8-1.3-1.9-1.3-3.1V9a4.7 4.7 0 0 0-9.4 0v2.4c0 1.2-.5 2.3-1.3 3.1-.5.4-.2 1.5.5 1.5h11c.7 0 1-.9.5-1.5Z"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="1.8"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  />
+                  <path
+                    d="M10 19a2 2 0 0 0 4 0"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="1.8"
+                    strokeLinecap="round"
+                  />
+                </svg>
                 {hasAnyNotificationsEnabled ? <span className="bell-indicator" aria-hidden="true" /> : null}
               </button>
               {showNotificationsMenu ? (

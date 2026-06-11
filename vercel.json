@@ -1,4 +1,7 @@
 {
+  "buildCommand": "npm run build:hosted",
+  "outputDirectory": "dist",
+  "framework": "vite",
   "rewrites": [
     {
       "source": "/((?!api/.*).*)",
