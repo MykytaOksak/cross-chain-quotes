@@ -1659,6 +1659,32 @@ function buildLoadingVariantItem(pair, network, combo, routeLabel) {
   };
 }
 
+function buildLoadingVariantItems(pair, network, combos, includeMintRedeem, previousItems = []) {
+  const placeholders = combos.map((combo) => buildLoadingVariantItem(pair, network, combo));
+  if (includeMintRedeem && combos[0]) {
+    placeholders.push(buildLoadingVariantItem(pair, network, combos[0], "Mint/Redeem"));
+  }
+
+  return placeholders.map((placeholder) => {
+    const previousItem = Array.isArray(previousItems)
+      ? previousItems.find((item) => item.id === placeholder.id)
+      : null;
+    if (!previousItem?.buy && !previousItem?.sell) {
+      return placeholder;
+    }
+    const { error: _error, ...previousWithoutError } = previousItem;
+    return {
+      ...previousWithoutError,
+      ...placeholder,
+      buy: previousItem.buy,
+      sell: previousItem.sell,
+      updatedAt: previousItem.updatedAt ?? placeholder.updatedAt,
+      roundTripPct: previousItem.roundTripPct,
+      excludeFromArb: previousItem.excludeFromArb,
+    };
+  });
+}
+
 function getPairAmount(settings, pair) {
   return pair.amount?.trim() ? pair.amount : settings.defaultAmount;
 }
@@ -1799,16 +1825,7 @@ function prepareArbSnapshotState(settings, previousQuoteMap = null) {
     }
 
     const previousItems = previousQuoteMap?.[pair.id]?.[net.chain];
-    if (Array.isArray(previousItems) && previousItems.length > 0) {
-      quoteMap[pair.id][net.chain] = previousItems.map((item) => ({ ...item }));
-      return;
-    }
-
-    const placeholders = combos.map((combo) => buildLoadingVariantItem(pair, net, combo));
-    if (includeMintRedeem && combos[0]) {
-      placeholders.push(buildLoadingVariantItem(pair, net, combos[0], "Mint/Redeem"));
-    }
-    quoteMap[pair.id][net.chain] = placeholders;
+    quoteMap[pair.id][net.chain] = buildLoadingVariantItems(pair, net, combos, includeMintRedeem, previousItems);
   });
 
   return { quoteMap, tasks };
@@ -1851,10 +1868,7 @@ export async function buildArbSnapshot(configPath, options = {}) {
     const needsProxyRate =
       net.chain === "plasma" &&
       combos.some((combo) => combo.baseVariant.proxyTokenId === "usdt" || combo.quoteVariant.proxyTokenId === "usdt");
-    let results = combos.map((combo) => buildLoadingVariantItem(pair, net, combo));
-    if (includeMintRedeem && combos[0]) {
-      results.push(buildLoadingVariantItem(pair, net, combos[0], "Mint/Redeem"));
-    }
+    let results = buildLoadingVariantItems(pair, net, combos, includeMintRedeem, quoteMap[pair.id]?.[net.chain]);
     quoteMap[pair.id][net.chain] = results;
     publishSnapshot();
     const replaceResult = (item) => {
