@@ -2900,11 +2900,17 @@ select:focus {
   }
 
   .arb-quote-table {
-    min-width: 460px;
+    min-width: 0;
   }
 
   .arb-quote-table .arb-price-pair-label {
     display: none;
+  }
+
+  .arb-quote-table .col-network,
+  .arb-quote-table .col-buy-price,
+  .arb-quote-table .col-sell-price {
+    width: 33.333%;
   }
 
   .arb-quote-table .col-buy,
@@ -2917,5 +2923,20 @@ select:focus {
   .arb-quote-table td:nth-child(4),
   .arb-quote-table td:nth-child(6) {
     display: none;
+  }
+
+  .arb-quote-table th,
+  .arb-quote-table td {
+    padding-left: 10px;
+    padding-right: 10px;
+  }
+
+  .arb-quote-table .network-heading {
+    gap: 10px;
+  }
+
+  .arb-quote-table .network-logo {
+    width: 34px;
+    height: 34px;
   }
 }
