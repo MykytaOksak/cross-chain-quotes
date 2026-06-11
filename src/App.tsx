@@ -375,6 +375,8 @@ const STORAGE_KEY = "cca.settings.v1";
 const THEME_STORAGE_KEY = "cca.theme.v1";
 const TAB_STORAGE_KEY = "cca.tab.v1";
 const NOTIFICATIONS_STORAGE_KEY = "cca.notifications.v1";
+const HOSTED_ENABLED_PAIRS_STORAGE_KEY = "cca.hosted.enabledPairs.v1";
+const HOSTED_DEFAULT_ENABLED_PAIR_IDS = ["usde-usdc"];
 type ThemeMode = "system" | "dark" | "light";
 type TabId = "arb" | "arb-new" | "portfolio" | "pendle";
 const BASE_SETTINGS = baseConfig as unknown as Settings;
@@ -498,6 +500,20 @@ function loadActiveTab(): TabId {
   }
   if (raw === "portfolio" || raw === "pendle") return raw;
   return "arb";
+}
+
+function loadHostedEnabledPairIds(): string[] {
+  if (!IS_HOSTED_MODE || typeof window === "undefined") return HOSTED_DEFAULT_ENABLED_PAIR_IDS;
+  try {
+    const raw = localStorage.getItem(HOSTED_ENABLED_PAIRS_STORAGE_KEY);
+    if (!raw) return HOSTED_DEFAULT_ENABLED_PAIR_IDS;
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return HOSTED_DEFAULT_ENABLED_PAIR_IDS;
+    const normalized = parsed.map((id) => String(id ?? "").trim()).filter(Boolean);
+    return normalized.length > 0 ? Array.from(new Set(normalized)) : HOSTED_DEFAULT_ENABLED_PAIR_IDS;
+  } catch {
+    return HOSTED_DEFAULT_ENABLED_PAIR_IDS;
+  }
 }
 
 type PersistedNotifications = {
@@ -4450,6 +4466,7 @@ function App() {
   const [pairSortById, setPairSortById] = useState<Record<string, PairSortState>>({});
   const [selectedArbPairId, setSelectedArbPairId] = useState<string | null>(null);
   const [selectedArbNewPairId, setSelectedArbNewPairId] = useState<string | null>(null);
+  const [hostedEnabledPairIds, setHostedEnabledPairIds] = useState<string[]>(() => loadHostedEnabledPairIds());
   const [quoteMap, setQuoteMap] = useState<QuoteMap>({});
   const [lastUpdated, setLastUpdated] = useState<number | null>(null);
   const [arbError, setArbError] = useState<string | null>(null);
@@ -4504,6 +4521,24 @@ function App() {
     }
     localStorage.setItem(TAB_STORAGE_KEY, activeTab);
   }, [activeTab]);
+
+  useEffect(() => {
+    if (!IS_HOSTED_MODE || typeof window === "undefined") return;
+    localStorage.setItem(HOSTED_ENABLED_PAIRS_STORAGE_KEY, JSON.stringify(hostedEnabledPairIds));
+  }, [hostedEnabledPairIds]);
+
+  const toggleHostedPairEnabled = useCallback((pairId: string) => {
+    if (!IS_HOSTED_MODE) return;
+    setHostedEnabledPairIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(pairId)) {
+        next.delete(pairId);
+      } else {
+        next.add(pairId);
+      }
+      return next.size > 0 ? Array.from(next) : [];
+    });
+  }, []);
 
   useEffect(() => {
     const persisted = loadPersistedNotifications();
@@ -4613,7 +4648,16 @@ function App() {
 
   const networks = useMemo(() => settings.networks ?? [], [settings.networks]);
   const arbNetworks = useMemo(() => arbSettings.networks ?? [], [arbSettings.networks]);
-  const activePairs = useMemo(() => arbSettings.pairs ?? [], [arbSettings.pairs]);
+  const allArbPairs = useMemo(() => arbSettings.pairs ?? [], [arbSettings.pairs]);
+  const hostedEnabledPairSet = useMemo(() => new Set(hostedEnabledPairIds), [hostedEnabledPairIds]);
+  const isHostedPairEnabled = useCallback(
+    (pairId: string) => !IS_HOSTED_MODE || hostedEnabledPairSet.has(pairId),
+    [hostedEnabledPairSet]
+  );
+  const activePairs = useMemo(
+    () => (IS_HOSTED_MODE ? allArbPairs.filter((pair) => hostedEnabledPairSet.has(pair.id)) : allArbPairs),
+    [allArbPairs, hostedEnabledPairSet]
+  );
   const pendle = useMemo(() => {
     return (
       settings.pendle ?? {
@@ -6510,6 +6554,7 @@ function App() {
     localStorage.removeItem(STORAGE_KEY);
     localStorage.removeItem(NOTIFICATIONS_STORAGE_KEY);
     localStorage.removeItem(TAB_STORAGE_KEY);
+    localStorage.removeItem(HOSTED_ENABLED_PAIRS_STORAGE_KEY);
     window.location.reload();
   }, []);
 
@@ -6520,7 +6565,7 @@ function App() {
       (!IS_HOSTED_MODE && settings.pendle?.notificationsEnabled)
   );
   const arbNewPairSummaries = useMemo(() => {
-    return activePairs.map((pair) => {
+    return allArbPairs.map((pair) => {
       const { base, quote } = getPairTokens(pair);
       const baseSymbol = base?.symbol ?? pair.baseTokenId;
       const quoteSymbol = quote?.symbol ?? pair.quoteTokenId;
@@ -6534,6 +6579,7 @@ function App() {
       return {
         pair,
         pairLabel,
+        enabled: isHostedPairEnabled(pair.id),
         baseSymbol,
         quoteSymbol,
         networks: networksForPair,
@@ -6543,7 +6589,7 @@ function App() {
         syncingRoutes,
       };
     });
-  }, [activePairs, getNetworksForPair, getPairTokens, opportunitiesByPair, quoteMap]);
+  }, [allArbPairs, getNetworksForPair, getPairTokens, isHostedPairEnabled, opportunitiesByPair, quoteMap]);
 
   useEffect(() => {
     if (!selectedArbPairId) return;
@@ -6561,8 +6607,11 @@ function App() {
     [opportunitiesByPair, selectedArbPairId]
   );
   const filteredActivePairs = useMemo(
-    () => (selectedArbPairId ? activePairs.filter((pair) => pair.id === selectedArbPairId) : activePairs),
-    [activePairs, selectedArbPairId]
+    () =>
+      selectedArbPairId
+        ? allArbPairs.filter((pair) => pair.id === selectedArbPairId)
+        : activePairs,
+    [activePairs, allArbPairs, selectedArbPairId]
   );
   const hasFilteredOpportunities = filteredOpportunitiesByPair.some((entry) => entry.opportunities.length > 0);
 
@@ -6887,7 +6936,9 @@ function App() {
               <button
                 key={`arb-filter-${item.pair.id}`}
                 type="button"
-                className={`arb-pair-filter-chip ${isActive ? "active" : ""}`}
+                className={`arb-pair-filter-chip ${isActive ? "active" : ""} ${
+                  item.enabled ? "" : "disabled"
+                }`}
                 aria-pressed={isActive}
                 onClick={() =>
                   setSelectedArbPairId((prev) => (prev === item.pair.id ? null : item.pair.id))
@@ -6994,6 +7045,7 @@ function App() {
         const pairSortState = pairSortById[pair.id];
         const pairQuotes = quoteMap[pair.id] ?? {};
         const pairNetworks = getNetworksForPair(pair);
+        const pairEnabled = isHostedPairEnabled(pair.id);
           const unsortedRows = pairNetworks.flatMap((net) => {
             const existing = pairQuotes[net.chain];
             if (existing && existing.length > 0) {
@@ -7038,21 +7090,32 @@ function App() {
         return (
           <section className="pair-section" key={pair.id}>
             <div className="table-card pair-table-card">
-              <button
-                className="pair-toggle pair-card-toggle"
-                onClick={() =>
-                  setCollapsedPairs((prev) => ({
-                    ...prev,
-                    [pair.id]: !(prev[pair.id] ?? false),
-                  }))
-                }
-              >
-                <span className="pair-table-title">{pairLabel}</span>
-                <span className={`pair-toggle-icon ${isCollapsed ? "collapsed" : ""}`} aria-hidden="true">
-                  ▾
-                </span>
-              </button>
-            {!isCollapsed ? (
+              <div className="pair-card-header">
+                <button
+                  className="pair-toggle pair-card-toggle"
+                  onClick={() =>
+                    setCollapsedPairs((prev) => ({
+                      ...prev,
+                      [pair.id]: !(prev[pair.id] ?? false),
+                    }))
+                  }
+                >
+                  <span className="pair-table-title">{pairLabel}</span>
+                  <span className={`pair-toggle-icon ${isCollapsed ? "collapsed" : ""}`} aria-hidden="true">
+                    ▾
+                  </span>
+                </button>
+                {IS_HOSTED_MODE ? (
+                  <button
+                    type="button"
+                    className={`pair-enabled-toggle ${pairEnabled ? "enabled" : "disabled"}`}
+                    onClick={() => toggleHostedPairEnabled(pair.id)}
+                  >
+                    {pairEnabled ? "Disable" : "Enable"}
+                  </button>
+                ) : null}
+              </div>
+            {!isCollapsed && pairEnabled ? (
                 <div className="table-body">
                   <div className="table-wrap">
                     <table className="quote-table arb-quote-table">
@@ -7231,8 +7294,12 @@ function App() {
                     </table>
                   </div>
                 </div>
-            ) : null}
-              </div>
+              ) : !isCollapsed ? (
+                <div className="pair-disabled-body">
+                  Pair is disabled for this hosted view.
+                </div>
+              ) : null}
+            </div>
           </section>
         );
       })}
