@@ -234,6 +234,29 @@ function mergeLoadingQuoteMap(previous: QuoteMap, incoming: QuoteMap): QuoteMap 
   return merged;
 }
 
+function markQuoteMapRefreshing(previous: QuoteMap, activePairs: PairConfig[]): QuoteMap {
+  const activePairIds = new Set(activePairs.map((pair) => pair.id));
+  const merged: QuoteMap = {};
+  Object.entries(previous).forEach(([pairId, networks]) => {
+    const isActivePair = activePairIds.has(pairId);
+    const mergedNetworks: Record<string, VariantQuote[]> = {};
+    merged[pairId] = mergedNetworks;
+    Object.entries(networks).forEach(([networkId, quotes]) => {
+      mergedNetworks[networkId] = quotes.map((quote) => {
+        if (!isActivePair || quote.status === "loading" || quote.status === "idle") {
+          return quote;
+        }
+        const { error: _error, ...quoteWithoutError } = quote;
+        return {
+          ...quoteWithoutError,
+          status: "loading",
+        };
+      });
+    });
+  });
+  return merged;
+}
+
 type ArbSnapshotResponse = {
   ok: boolean;
   settings: ArbSettings;
@@ -5703,6 +5726,7 @@ function App() {
     if (arbRefreshRequestInFlightRef.current) return;
     arbRefreshRequestInFlightRef.current = true;
     setIsArbSyncing(true);
+    setQuoteMap((previous) => markQuoteMapRefreshing(previous, activePairs));
     try {
       const response = await fetch(`${ARB_STREAM_ENDPOINT}${hostedQuoteQuery}`, {
         method: "GET",
@@ -5761,7 +5785,7 @@ function App() {
     } finally {
       arbRefreshRequestInFlightRef.current = false;
     }
-  }, [applyArbSnapshotPayload, hostedQuoteQuery]);
+  }, [activePairs, applyArbSnapshotPayload, hostedQuoteQuery]);
 
   const refreshQuotes = useCallback(async () => {
     if (!isRunning) return false;
