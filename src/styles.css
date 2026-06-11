@@ -2514,6 +2514,14 @@ body {
   padding-top: 4px;
 }
 
+.pair-settings-actions button {
+  min-height: 40px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+}
+
 .settings-layout {
   display: grid;
   grid-template-columns: 260px minmax(0, 1fr);
