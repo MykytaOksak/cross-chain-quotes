@@ -11,7 +11,18 @@ export const config = {
   maxDuration: 300,
 };
 
+function hasResolvedQuote(snapshot) {
+  const pairs = snapshot?.quoteMap && typeof snapshot.quoteMap === "object" ? Object.values(snapshot.quoteMap) : [];
+  return pairs.some((byNetwork) => {
+    if (!byNetwork || typeof byNetwork !== "object") return false;
+    return Object.values(byNetwork).some((items) =>
+      Array.isArray(items) && items.some((item) => item?.status === "ok" || item?.status === "error")
+    );
+  });
+}
+
 function isSnapshotStale(snapshot) {
+  if (!hasResolvedQuote(snapshot)) return true;
   const updatedAt = Number(snapshot?.updatedAt ?? 0);
   return !Number.isFinite(updatedAt) || updatedAt <= 0 || Date.now() - updatedAt > HOSTED_REFRESH_MS;
 }
