@@ -1829,14 +1829,14 @@ body {
 
 .arb-pair-filter-chip.disabled {
   color: var(--text-2);
-  background: rgba(255, 255, 255, 0.04);
-  border-color: rgba(255, 255, 255, 0.1);
+  background: var(--card-2);
+  border-color: var(--line);
   opacity: 0.58;
 }
 
 .arb-pair-filter-chip.disabled.active {
   opacity: 0.78;
-  background: rgba(255, 255, 255, 0.06);
+  background: var(--card);
   border-color: var(--line);
   box-shadow: none;
 }
