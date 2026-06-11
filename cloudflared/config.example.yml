@@ -1,0 +1,7 @@
+tunnel: your-tunnel-id
+credentials-file: /Users/your-user/.cloudflared/your-tunnel-id.json
+
+ingress:
+  - hostname: arb.your-domain.com
+    service: http://localhost:4173
+  - service: http_status:404

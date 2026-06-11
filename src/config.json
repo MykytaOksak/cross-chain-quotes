@@ -1,0 +1,1273 @@
+{
+  "defaultAmount": "100000",
+  "refreshMs": 8000,
+  "minProfitPct": 0.05,
+  "notifications": {
+    "enabled": false,
+    "minAmountChangePct": 30,
+    "telegram": {
+      "botToken": "",
+      "chatId": ""
+    },
+    "pairs": []
+  },
+  "arbitrageRules": [
+    {
+      "id": "base-usdt-buy",
+      "side": "sell",
+      "network": "base",
+      "tokenId": "usdt",
+      "tokenSide": "quote",
+      "minProfitPct": 0.5,
+      "tag": "7d"
+    },
+    {
+      "id": "frax-arbitrum-sell",
+      "side": "sell",
+      "network": "arbitrum",
+      "tokenId": "frax",
+      "tokenSide": "base",
+      "minProfitPct": 0.3
+    },
+    {
+      "id": "mseth-pair-min-profit",
+      "tokenId": "mseth",
+      "tokenSide": "base",
+      "minProfitPct": 0.25
+    },
+    {
+      "id": "xaut-hyperevm-source",
+      "side": "buy",
+      "network": "hyperevm",
+      "tokenId": "xaut",
+      "tokenSide": "base",
+      "minProfitPct": 1
+    },
+    {
+      "id": "xaut-pair-min-profit",
+      "tokenId": "xaut",
+      "tokenSide": "base",
+      "minProfitPct": 0.12
+    },
+    {
+      "id": "msusd-pair-min-profit",
+      "tokenId": "msusd",
+      "tokenSide": "base",
+      "minProfitPct": 0.08
+    },
+    {
+      "id": "reusd-pair-min-profit",
+      "tokenId": "reusd",
+      "tokenSide": "base",
+      "minProfitPct": 0.01
+    }
+  ],
+  "tokens": [
+    {
+      "id": "usdc",
+      "symbol": "USDC",
+      "decimalsByNetwork": {
+        "ethereum": 6,
+        "mantle": 6,
+        "optimism": 6,
+        "gnosis": 6,
+        "polygon": 6,
+        "arbitrum": 6,
+        "avalanche": 6,
+        "base": 6,
+        "zksync": 6,
+        "sei": 6,
+        "linea": 6,
+        "near": 6,
+        "etherlink": 6,
+        "katana": 6,
+        "hyperevm": 6,
+        "ink": 6,
+        "solana": 6,
+        "bsc": 18,
+        "sonic": 6,
+        "unichain": 6,
+        "moonbeam": 6,
+        "plasma": 6,
+        "monad": 6,
+        "megaeth": 18,
+        "movement": 6
+      },
+      "addresses": {
+        "ethereum": "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
+        "mantle": "0x09bc4e0d864854c6afb6eb9a9cdf58ac190d0df9",
+        "optimism": "0x7f5c764cbc14f9669b88837ca1490cca17c31607",
+        "gnosis": "0xDDAfbb505ad214D7b80b1f830fcCc89B60fb7A83",
+        "polygon": "0x2791bca1f2de4661ed88a30c99a7a9449aa84174",
+        "arbitrum": "0xaf88d065e77c8cC2239327C5EDb3A432268e5831",
+        "avalanche": "0xB97EF9Ef8734C71904D8002F8b6Bc66Dd9c48a6E",
+        "base": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+        "zksync": "0x3355df6d4c9c3035724fd0e3914de96a5a83aaf4",
+        "sei": "0xe15fC38F6D8c56aF07bbCBe3BAf5708A2Bf42392",
+        "linea": "0x176211869cA2b568f2A7D4EE941E073a821EE1ff",
+        "near": "17208628f84f5d6ad33f0da3bbbeb27ffcb398eac501a31bd6ad2011e36133a1",
+        "etherlink": "0x796Ea11Fa2dD751eD01b53C372fFDB4AAa8f00F9",
+        "katana": "0x203a662b0bd271a6ed5a60edfbd04bfce608fd36",
+        "hyperevm": "0xb88339cb7199b77e23db6e890353e22632ba630f",
+        "ink": "0x2d270e6886d130d724215a266106e6832161eaed",
+        "solana": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+        "bsc": "0x8AC76a51cc950d9822D68b83fE1Ad97B32Cd580d",
+        "sonic": "0x29219dd400f2Bf60E5a23d13Be72B486D4038894",
+        "unichain": "0x078D782b760474a361dDA0AF3839290b0EF57AD6",
+        "moonbeam": "",
+        "plasma": "",
+        "monad": "0x754704bc059f8c67012fed69bc8a327a5aafb603",
+        "megaeth": "0xFAfDdbb3FC7688494971a79cc65DCa3EF82079E7",
+        "movement": "0xba11833544a2f99eec743f41a228ca6ffa7f13c3b6b04681d5a79a8b75ff225e"
+      },
+      "variantsByNetwork": {
+        "gnosis": [
+          {
+            "id": "dai",
+            "label": "DAI",
+            "address": "0xe91d153e0b41518a2ce8dd3d7944fa863463a97d",
+            "decimals": 18
+          }
+        ],
+        "near": [
+          {
+            "id": "usdc.e",
+            "label": "USDC.E",
+            "address": "a0b86991c6218b36c1d19d4a2e9eb0ce3606eb48.factory.bridge.near",
+            "decimals": 6
+          },
+          {
+            "id": "dai",
+            "label": "DAI",
+            "address": "6b175474e89094c44da98b954eedeac495271d0f.factory.bridge.near",
+            "decimals": 18
+          }
+        ]
+      }
+    },
+    {
+      "id": "savusd",
+      "symbol": "savUSD",
+      "decimalsByNetwork": {
+        "ethereum": 18,
+        "avalanche": 18,
+        "movement": 6
+      },
+      "addresses": {
+        "ethereum": "0xb8D89678E75a973E74698c976716308abB8a46A4",
+        "avalanche": "0x06d47F3fb376649c3A9Dafe069B3D6E35572219E",
+        "movement": "0xde6eb2598d91fd43c432ba7f0bca56158525a74ac0841b749ce17bf984cf5642"
+      }
+    },
+    {
+      "id": "apyusd",
+      "symbol": "apyUSD",
+      "decimalsByNetwork": {
+        "ethereum": 18,
+        "base": 18,
+        "bsc": 18
+      },
+      "addresses": {
+        "ethereum": "0x38EEb52F0771140d10c4E9A9a72349A329Fe8a6A",
+        "base": "0x2c271ddF484aC0386d216eB7eB9Ff02D4Dc0F6AA",
+        "bsc": "0xa14556f13516C53FF035858Ffd21E1625e7EADfd"
+      }
+    },
+    {
+      "id": "apxusd",
+      "symbol": "apxUSD",
+      "decimalsByNetwork": {
+        "ethereum": 18,
+        "base": 18,
+        "bsc": 18
+      },
+      "addresses": {
+        "ethereum": "0x98A878b1Cd98131B271883B390f68D2c90674665",
+        "base": "0xd993935e13851dd7517af10687ec7e5022127228",
+        "bsc": "0x6b3788Fd6604BBF03c5378D24e57BB334BAAD4aF"
+      }
+    },
+    {
+      "id": "usdt",
+      "symbol": "USDT",
+      "decimalsByNetwork": {
+        "ethereum": 6,
+        "mantle": 6,
+        "optimism": 6,
+        "gnosis": 6,
+        "polygon": 6,
+        "arbitrum": 6,
+        "avalanche": 6,
+        "base": 6,
+        "zksync": 6,
+        "sei": 6,
+        "linea": 6,
+        "moonbeam": 6,
+        "near": 6,
+        "etherlink": 6,
+        "hyperevm": 6,
+        "ink": 6,
+        "katana": 6,
+        "bsc": 18,
+        "sonic": 6,
+        "unichain": 6,
+        "plasma": 6,
+        "monad": 6,
+        "solana": 6,
+        "movement": 6,
+        "megaeth": 6
+      },
+      "addresses": {
+        "ethereum": "0xdAC17F958D2ee523a2206206994597C13D831ec7",
+        "mantle": "0x779ded0c9e1022225f8e0630b35a9b54be713736",
+        "optimism": "0x94b008aa00579c1307b0ef2c499ad98a8ce58e58",
+        "gnosis": "0x4ecaba5870353805a9f068101a40e0f32ed605c6",
+        "polygon": "0xc2132d05d31c914a87c6611c10748aeb04b58e8f",
+        "arbitrum": "0xFd086bC7CD5C481DCC9C85ebE478A1C0b69FCbb9",
+        "avalanche": "0x9702230a8ea53601f5cd2dc00fdbc13d4df4a8c7",
+        "base": "0xfde4C96c8593536E31F229EA8f37b2ADa2699bb2",
+        "zksync": "0x493257fd37edb34451f62edf8d2a0c418852ba4c",
+        "sei": "0x9151434b16b9763660705744891fA906F660EcC5",
+        "moonbeam": "0xFFFFFFfFea09FB06d082fd1275CD48b191cbCD1d",
+        "bsc": "0x55d398326f99059fF775485246999027B3197955",
+        "sonic": "0x6047828dc181963ba44974801FF68e538dA5eaF9",
+        "unichain": "0x9151434b16b9763660705744891fA906F660EcC5",
+        "plasma": "0xB8CE59FC3717ada4C02eaDF9682A9e934F625ebb",
+        "monad": "0xe7cd86e13AC4309349F30B3435a9d337750fC82D",
+        "linea": "0xA219439258ca9da29E9Cc4cE5596924745e12B93",
+        "etherlink": "0x2C03058C8AFC06713be23e58D2febC8337dbfE6A",
+        "hyperevm": "0xB8CE59FC3717ada4C02eaDF9682A9e934F625ebb",
+        "ink": "0x0200C29006150606B650577BBE7B6248F58470c1",
+        "katana": "0x2DCa96907fde857dd3D816880A0df407eeB2D2F2",
+        "solana": "Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB",
+        "movement": "0x447721a30109c662dde9c73a0c2c9c9c459fb5e5a9c92f03c50fa69737f5d08d",
+        "near": "usdt.tether-token.near",
+        "megaeth": "0xB8CE59FC3717ada4C02eaDF9682A9e934F625ebb"
+      },
+      "variantsByNetwork": {
+        "near": [
+          {
+            "id": "usdt.e",
+            "label": "USDT.E",
+            "address": "dac17f958d2ee523a2206206994597c13d831ec7.factory.bridge.near",
+            "decimals": 6
+          }
+        ]
+      }
+    },
+    {
+      "id": "usd1",
+      "symbol": "USD1",
+      "decimalsByNetwork": {
+        "ethereum": 18,
+        "monad": 6,
+        "bsc": 18,
+        "solana": 6
+      },
+      "addresses": {
+        "ethereum": "0x8d0D000Ee44948FC98c9B98A4FA4921476f08B0d",
+        "monad": "0x111111d2bf19e43c34263401e0cad979ed1cdb61",
+        "bsc": "0x8d0d000ee44948fc98c9b98a4fa4921476f08b0d",
+        "solana": "USD1ttGY1N17NEEHLmELoaybftRBUSErhqYiQzvEmuB"
+      }
+    },
+    {
+      "id": "susdai",
+      "symbol": "SUSDAI",
+      "decimalsByNetwork": {
+        "plasma": 18,
+        "arbitrum": 18,
+        "base": 18
+      },
+      "addresses": {
+        "plasma": "0x0b2b2b2076d95dda7817e785989fe353fe955ef9",
+        "arbitrum": "0x0b2b2b2076d95dda7817e785989fe353fe955ef9",
+        "base": "0x0B2b2B2076d95dda7817e785989fE353fe955ef9"
+      }
+    },
+    {
+      "id": "usdai",
+      "symbol": "USDAI",
+      "decimalsByNetwork": {
+        "plasma": 18,
+        "arbitrum": 18,
+        "base": 18
+      },
+      "addresses": {
+        "plasma": "0x0a1a1a107e45b7ced86833863f482bc5f4ed82ef",
+        "arbitrum": "0x0a1a1a107e45b7ced86833863f482bc5f4ed82ef",
+        "base": "0x0A1a1A107E45b7Ced86833863f482BC5f4ed82EF"
+      }
+    },
+    {
+      "id": "frax",
+      "symbol": "FRAX",
+      "decimalsByNetwork": {
+        "ethereum": 18,
+        "arbitrum": 18,
+        "near": 18
+      },
+      "addresses": {
+        "ethereum": "0x853d955acef822db058eb8505911ed77f175b99e",
+        "arbitrum": "0x17fc002b466eec40dae837fc4be5c67993ddbd6f",
+        "near": "853d955acef822db058eb8505911ed77f175b99e.factory.bridge.near"
+      }
+    },
+    {
+      "id": "ausd",
+      "symbol": "AUSD",
+      "decimalsByNetwork": {
+        "ethereum": 6,
+        "monad": 6,
+        "avalanche": 6,
+        "base": 6,
+        "katana": 6
+      },
+      "addresses": {
+        "ethereum": "0x00000000efe302beaa2b3e6e1b18d08d69a9012a",
+        "monad": "0x00000000efe302beaa2b3e6e1b18d08d69a9012a",
+        "avalanche": "0x00000000efe302beaa2b3e6e1b18d08d69a9012a",
+        "base": "0x00000000efe302beaa2b3e6e1b18d08d69a9012a",
+        "katana": "0x00000000efe302beaa2b3e6e1b18d08d69a9012a"
+      }
+    },
+    {
+      "id": "msusd",
+      "symbol": "msUSD",
+      "decimalsByNetwork": {
+        "ethereum": 18,
+        "optimism": 18,
+        "plasma": 18,
+        "base": 18
+      },
+      "addresses": {
+        "ethereum": "0xab5eb14c09d416f0ac63661e57edb7aecdb9befa",
+        "optimism": "0x9dabae7274d28a45f0b65bf8ed201a5731492ca0",
+        "plasma": "0x29ad7fe4516909b9e498b5a65339e54791293234",
+        "base": "0x526728dbc96689597f85ae4cd716d4f7fccbae9d"
+      }
+    },
+    {
+      "id": "mseth",
+      "symbol": "msETH",
+      "decimalsByNetwork": {
+        "ethereum": 18,
+        "optimism": 18,
+        "plasma": 18,
+        "base": 18
+      },
+      "addresses": {
+        "ethereum": "0x64351fc9810adad17a690e4e1717df5e7e085160",
+        "optimism": "0x1610e3c85dd44af31ed7f33a63642012dca0c5a5",
+        "plasma": "0x7230a9D42D622E18FDf7207041EcA18465F9F1bE",
+        "base": "0x7ba6f01772924a82d9626c126347a28299e98c98"
+      }
+    },
+    {
+      "id": "weth",
+      "symbol": "WETH",
+      "decimalsByNetwork": {
+        "plasma": 18,
+        "base": 18,
+        "optimism": 18,
+        "ethereum": 18,
+        "arbitrum": 18,
+        "monad": 18,
+        "katana": 18
+      },
+      "addresses": {
+        "plasma": "0x9895D81bB462A195b4922ED7De0e3ACD007c32CB",
+        "base": "0x4200000000000000000000000000000000000006",
+        "optimism": "0x4200000000000000000000000000000000000006",
+        "ethereum": "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2",
+        "arbitrum": "0x82aF49447D8a07e3bd95BD0d56f35241523fBab1",
+        "monad": "0xee8c0e9f1bffb4eb878d8f15f368a02a35481242",
+        "katana": "0xEE7D8BCFb72bC1880D0Cf19822eB0A2e6577aB62"
+      }
+    },
+    {
+      "id": "wsteth",
+      "symbol": "wstETH",
+      "decimalsByNetwork": {
+        "ethereum": 18,
+        "arbitrum": 18,
+        "base": 18,
+        "optimism": 18,
+        "monad": 18,
+        "plasma": 18,
+        "katana": 18
+      },
+      "addresses": {
+        "ethereum": "0x7f39C581F595B53c5cb19bD0b3f8dA6c935E2Ca0",
+        "arbitrum": "0x5979D7b546E38E414F7E9822514be443A4800529",
+        "base": "0xc1CBa3fCEA344F92D9239C08C0568f6F2F0ee452",
+        "optimism": "0x1F32b1c2345538c0c6f582fCB022739c4A194Ebb",
+        "monad": "0x10Aeaf63194db8d453d4D85a06E5eFE1dd0b5417",
+        "plasma": "0x10Aeaf63194db8d453d4D85a06E5eFE1dd0b5417",
+        "katana": "0x7Fb4D0f51544F24F385a421Db6e7D4fC71Ad8e5C"
+      }
+    },
+    {
+      "id": "weeth",
+      "symbol": "weETH",
+      "decimalsByNetwork": {
+        "ethereum": 18,
+        "arbitrum": 18,
+        "base": 18,
+        "optimism": 18,
+        "monad": 18,
+        "plasma": 18,
+        "katana": 18
+      },
+      "addresses": {
+        "ethereum": "0xCd5fE23C85820F7B72D0926FC9b05b43E359b7ee",
+        "arbitrum": "0x35751007a407ca6FEFfE80b3cB397736D2cf4dbe",
+        "base": "0x04C0599Ae5A44757c0af6F9eC3b93da8976c150A",
+        "optimism": "0x5a7facb970d094b6c7ff1df0ea68d99e6e73cbff",
+        "monad": "0xA3D68b74bf0528fdd07263c60d6488749044914b",
+        "plasma": "0xA3D68b74bf0528fdd07263c60d6488749044914b",
+        "katana": "0x9893989433e7a383Cb313953e4c2365107dc19a7"
+      }
+    },
+    {
+      "id": "thbill",
+      "symbol": "thBILL",
+      "decimalsByNetwork": {
+        "hyperevm": 6,
+        "arbitrum": 6
+      },
+      "addresses": {
+        "hyperevm": "0xfDD22Ce6D1F66bc0Ec89b20BF16CcB6670F55A5a",
+        "arbitrum": "0xfDD22Ce6D1F66bc0Ec89b20BF16CcB6670F55A5a"
+      }
+    },
+    {
+      "id": "xaut",
+      "symbol": "XAUT",
+      "decimalsByNetwork": {
+        "ethereum": 6,
+        "arbitrum": 6,
+        "hyperevm": 6,
+        "monad": 6,
+        "avalanche": 6
+      },
+      "addresses": {
+        "ethereum": "0x68749665ff8d2d112fa859aa293f07a622782f38",
+        "arbitrum": "0x40461291347e1ecbb09499f3371d3f17f10d7159",
+        "hyperevm": "0xf4D9235269a96aaDaFc9aDAe454a0618eBE37949",
+        "monad": "0x01bFF41798a0BcF287b996046Ca68b395DbC1071",
+        "avalanche": "0x2775d5105276781b4b85ba6ea6a6653beed1dd32"
+      }
+    },
+    {
+      "id": "usde",
+      "symbol": "USDE",
+      "decimalsByNetwork": {
+        "ethereum": 18,
+        "plasma": 18,
+        "base": 18,
+        "arbitrum": 18,
+        "hyperevm": 18,
+        "mantle": 18,
+        "megaeth": 18,
+        "solana": 9
+      },
+      "addresses": {
+        "ethereum": "0x4c9EDD5852cd905f086C759E8383e09bff1E68B3",
+        "plasma": "0x5d3a1Ff2b6BAb83b63cd9AD0787074081a52ef34",
+        "base": "0x5d3a1Ff2b6BAb83b63cd9AD0787074081a52ef34",
+        "arbitrum": "0x5d3a1Ff2b6BAb83b63cd9AD0787074081a52ef34",
+        "hyperevm": "0x5d3a1Ff2b6BAb83b63cd9AD0787074081a52ef34",
+        "mantle": "0x5d3a1Ff2b6BAb83b63cd9AD0787074081a52ef34",
+        "megaeth": "0x5d3a1Ff2b6BAb83b63cd9AD0787074081a52ef34",
+        "solana": "DEkqHyPN7GMRJ5cArtQFAWefqbZb33Hyf6s5iCwjEonT"
+      }
+    },
+    {
+      "id": "stcusd",
+      "symbol": "stcUSD",
+      "decimalsByNetwork": {
+        "ethereum": 18,
+        "megaeth": 18
+      },
+      "addresses": {
+        "ethereum": "0x88887bE419578051FF9F4eb6C858A951921D8888",
+        "megaeth": "0x88887bE419578051FF9F4eb6C858A951921D8888"
+      }
+    },
+    {
+      "id": "susde",
+      "symbol": "sUSDe",
+      "decimalsByNetwork": {
+        "ethereum": 18,
+        "arbitrum": 18,
+        "mantle": 18,
+        "hyperevm": 18,
+        "plasma": 18,
+        "solana": 9
+      },
+      "addresses": {
+        "ethereum": "0x9D39A5DE30e57443BfF2A8307A4256c8797A3497",
+        "arbitrum": "0x211Cc4DD073734dA055fbF44a2b4667d5E5fE5d2",
+        "mantle": "0x211Cc4DD073734dA055fbF44a2b4667d5E5fE5d2",
+        "hyperevm": "0x211Cc4DD073734dA055fbF44a2b4667d5E5fE5d2",
+        "plasma": "0x211Cc4DD073734dA055fbF44a2b4667d5E5fE5d2",
+        "solana": "Eh6XEPhSwoLv5wFApukmnaVSHQ6sAnoD9BmgmwQoN2sN"
+      }
+    },
+    {
+      "id": "reusd",
+      "symbol": "reUSD",
+      "decimalsByNetwork": {
+        "ethereum": 18
+      },
+      "addresses": {
+        "ethereum": "0x5086bf358635B81D8C47C66d1C8b9E567Db70c72"
+      }
+    },
+    {
+      "id": "pyusd",
+      "symbol": "PYUSD",
+      "decimalsByNetwork": {
+        "ethereum": 6,
+        "solana": 6
+      },
+      "addresses": {
+        "ethereum": "0x6c3ea9036406852006290770bedfcaba0e23a0e8",
+        "solana": "2b1kV6DkPAnxd5ixfnxCpjxmKwqjjaYmCZfHsFu24GXo"
+      }
+    },
+    {
+      "id": "usdg",
+      "symbol": "USDG",
+      "decimalsByNetwork": {
+        "ethereum": 6,
+        "ink": 6,
+        "solana": 6
+      },
+      "addresses": {
+        "ethereum": "0xe343167631d89B6Ffc58B88d6b7fB0228795491D",
+        "ink": "0xe343167631d89B6Ffc58B88d6b7fB0228795491D",
+        "solana": "2u1tszSeqZ3qBWF3uNGPFc8TzMk2tdiwknnRMWGWjGWH"
+      }
+    },
+    {
+      "id": "gho",
+      "symbol": "GHO",
+      "decimalsByNetwork": {
+        "ethereum": 18,
+        "arbitrum": 18,
+        "base": 18,
+        "plasma": 18,
+        "ink": 18
+      },
+      "addresses": {
+        "ethereum": "0x40d16fc0246ad3160ccc09b8d0d3a2cd28ae6c2f",
+        "arbitrum": "0x7dff72693f6a4149b17e7c6314655f6a9f7c8b33",
+        "base": "0x6bb7a212910682dcfdbd5bcbb3e28fb4e8da10ee",
+        "plasma": "0xb77e872a68c62cfc0dfb02c067ecc3da23b4bbf3",
+        "ink": "0xfc421ad3c883bf9e7c4f42de845c4e4405799e73"
+      }
+    }
+  ],
+  "pairs": [
+    {
+      "id": "usdc-usdt",
+      "amount": "50000",
+      "baseTokenId": "usdc",
+      "quoteTokenId": "usdt",
+      "networks": {
+        "ethereum": true,
+        "arbitrum": true,
+        "optimism": false,
+        "base": false,
+        "polygon": false,
+        "bsc": true,
+        "avalanche": true,
+        "mantle": false,
+        "gnosis": false,
+        "zksync": false,
+        "sei": false,
+        "linea": false,
+        "near": false,
+        "etherlink": false,
+        "hyperevm": false,
+        "ink": false,
+        "katana": false,
+        "sonic": false,
+        "unichain": false,
+        "moonbeam": false,
+        "plasma": false,
+        "monad": true,
+        "megaeth": false,
+        "solana": true,
+        "movement": false
+      }
+    },
+    {
+      "id": "susdai-usdc",
+      "amount": "30000",
+      "baseTokenId": "susdai",
+      "quoteTokenId": "usdc",
+      "networks": {
+        "ethereum": false,
+        "arbitrum": true,
+        "optimism": false,
+        "base": true,
+        "polygon": false,
+        "bsc": false,
+        "avalanche": false,
+        "mantle": false,
+        "gnosis": false,
+        "zksync": false,
+        "sei": false,
+        "linea": false,
+        "near": false,
+        "etherlink": false,
+        "katana": false,
+        "hyperevm": false,
+        "ink": false,
+        "sonic": false,
+        "unichain": false,
+        "moonbeam": false,
+        "plasma": true,
+        "monad": false,
+        "megaeth": false,
+        "solana": false,
+        "movement": false
+      }
+    },
+    {
+      "id": "thbill-usdc",
+      "amount": "20000",
+      "baseTokenId": "thbill",
+      "quoteTokenId": "usdc",
+      "networks": {
+        "ethereum": false,
+        "arbitrum": true,
+        "optimism": false,
+        "base": false,
+        "polygon": false,
+        "bsc": false,
+        "avalanche": false,
+        "mantle": false,
+        "gnosis": false,
+        "zksync": false,
+        "sei": false,
+        "linea": false,
+        "near": false,
+        "etherlink": false,
+        "katana": false,
+        "hyperevm": true,
+        "ink": false,
+        "sonic": false,
+        "unichain": false,
+        "moonbeam": false,
+        "plasma": false,
+        "monad": false,
+        "megaeth": false,
+        "solana": false,
+        "movement": false
+      }
+    },
+    {
+      "id": "ausd-usdc",
+      "amount": "30000",
+      "baseTokenId": "ausd",
+      "quoteTokenId": "usdc",
+      "networks": {
+        "ethereum": true,
+        "arbitrum": false,
+        "optimism": false,
+        "base": false,
+        "polygon": false,
+        "bsc": false,
+        "avalanche": true,
+        "mantle": false,
+        "gnosis": false,
+        "zksync": false,
+        "sei": false,
+        "linea": false,
+        "near": false,
+        "etherlink": false,
+        "katana": true,
+        "hyperevm": false,
+        "ink": false,
+        "sonic": false,
+        "unichain": false,
+        "moonbeam": false,
+        "plasma": false,
+        "monad": true,
+        "megaeth": false,
+        "solana": false,
+        "movement": false
+      }
+    },
+    {
+      "id": "usd1-usdc",
+      "amount": "30000",
+      "baseTokenId": "usd1",
+      "quoteTokenId": "usdc",
+      "networks": {
+        "ethereum": true,
+        "arbitrum": false,
+        "optimism": false,
+        "base": false,
+        "polygon": false,
+        "bsc": true,
+        "avalanche": false,
+        "mantle": false,
+        "gnosis": false,
+        "zksync": false,
+        "sei": false,
+        "linea": false,
+        "near": false,
+        "etherlink": false,
+        "katana": false,
+        "hyperevm": false,
+        "ink": false,
+        "sonic": false,
+        "unichain": false,
+        "moonbeam": false,
+        "plasma": false,
+        "monad": false,
+        "megaeth": false,
+        "solana": true,
+        "movement": false
+      }
+    },
+    {
+      "id": "savusd-usdc",
+      "amount": "20000",
+      "baseTokenId": "savusd",
+      "quoteTokenId": "usdc",
+      "networks": {
+        "ethereum": true,
+        "arbitrum": false,
+        "optimism": false,
+        "base": false,
+        "polygon": false,
+        "bsc": false,
+        "avalanche": true,
+        "mantle": false,
+        "gnosis": false,
+        "zksync": false,
+        "sei": false,
+        "linea": false,
+        "near": false,
+        "etherlink": false,
+        "katana": false,
+        "hyperevm": false,
+        "ink": false,
+        "sonic": false,
+        "unichain": false,
+        "moonbeam": false,
+        "plasma": false,
+        "monad": false,
+        "megaeth": false,
+        "solana": false,
+        "movement": true
+      }
+    },
+    {
+      "id": "apyusd-apxusd",
+      "amount": "30000",
+      "baseTokenId": "apyusd",
+      "quoteTokenId": "apxusd",
+      "networks": {
+        "ethereum": true,
+        "arbitrum": false,
+        "optimism": false,
+        "base": true,
+        "polygon": false,
+        "bsc": true,
+        "avalanche": false,
+        "mantle": false,
+        "gnosis": false,
+        "zksync": false,
+        "sei": false,
+        "linea": false,
+        "near": false,
+        "etherlink": false,
+        "katana": false,
+        "hyperevm": false,
+        "ink": false,
+        "sonic": false,
+        "unichain": false,
+        "moonbeam": false,
+        "plasma": false,
+        "monad": false,
+        "megaeth": false,
+        "solana": false,
+        "movement": false
+      }
+    },
+    {
+      "id": "msusd-usdc",
+      "amount": "10000",
+      "baseTokenId": "msusd",
+      "quoteTokenId": "usdc",
+      "networks": {
+        "ethereum": true,
+        "arbitrum": false,
+        "optimism": true,
+        "base": true,
+        "polygon": false,
+        "bsc": false,
+        "avalanche": false,
+        "mantle": false,
+        "gnosis": false,
+        "zksync": false,
+        "sei": false,
+        "linea": false,
+        "near": false,
+        "etherlink": false,
+        "katana": false,
+        "sonic": false,
+        "unichain": false,
+        "moonbeam": false,
+        "plasma": true,
+        "monad": false,
+        "hyperevm": false,
+        "ink": false,
+        "solana": false
+      }
+    },
+    {
+      "id": "mseth-usdc",
+      "amount": "3",
+      "baseTokenId": "mseth",
+      "quoteTokenId": "weth",
+      "networks": {
+        "ethereum": true,
+        "arbitrum": false,
+        "optimism": true,
+        "base": true,
+        "polygon": false,
+        "bsc": false,
+        "avalanche": false,
+        "mantle": false,
+        "gnosis": false,
+        "zksync": false,
+        "sei": false,
+        "linea": false,
+        "near": false,
+        "etherlink": false,
+        "katana": false,
+        "hyperevm": false,
+        "ink": false,
+        "sonic": false,
+        "unichain": false,
+        "moonbeam": false,
+        "plasma": true,
+        "monad": false,
+        "megaeth": false,
+        "solana": false,
+        "movement": false
+      }
+    },
+    {
+      "id": "usde-usdc",
+      "amount": "30000",
+      "baseTokenId": "usde",
+      "quoteTokenId": "usdc",
+      "networks": {
+        "ethereum": true,
+        "arbitrum": false,
+        "optimism": false,
+        "base": false,
+        "polygon": false,
+        "bsc": false,
+        "avalanche": false,
+        "mantle": true,
+        "gnosis": false,
+        "zksync": false,
+        "sei": false,
+        "linea": false,
+        "near": false,
+        "etherlink": false,
+        "katana": false,
+        "hyperevm": true,
+        "ink": false,
+        "sonic": false,
+        "unichain": false,
+        "moonbeam": false,
+        "plasma": true,
+        "monad": false,
+        "megaeth": false,
+        "solana": true
+      }
+    },
+    {
+      "id": "susde-usdc",
+      "amount": "30000",
+      "baseTokenId": "susde",
+      "quoteTokenId": "usdc",
+      "networks": {
+        "ethereum": true,
+        "arbitrum": true,
+        "optimism": false,
+        "base": false,
+        "polygon": false,
+        "bsc": false,
+        "avalanche": false,
+        "mantle": true,
+        "gnosis": false,
+        "zksync": false,
+        "sei": false,
+        "linea": false,
+        "near": false,
+        "etherlink": false,
+        "katana": false,
+        "hyperevm": true,
+        "ink": false,
+        "sonic": false,
+        "unichain": false,
+        "moonbeam": false,
+        "plasma": true,
+        "monad": false,
+        "megaeth": false,
+        "solana": false,
+        "movement": false
+      }
+    },
+    {
+      "id": "reusd-usdc",
+      "amount": "100000",
+      "baseTokenId": "reusd",
+      "quoteTokenId": "usdc",
+      "networks": {
+        "ethereum": true,
+        "arbitrum": false,
+        "optimism": false,
+        "base": false,
+        "polygon": false,
+        "bsc": false,
+        "avalanche": false,
+        "mantle": false,
+        "gnosis": false,
+        "zksync": false,
+        "sei": false,
+        "linea": false,
+        "near": false,
+        "etherlink": false,
+        "katana": false,
+        "hyperevm": false,
+        "ink": false,
+        "sonic": false,
+        "unichain": false,
+        "moonbeam": false,
+        "plasma": false,
+        "monad": false,
+        "megaeth": false,
+        "solana": false,
+        "movement": false
+      }
+    },
+    {
+      "id": "wsteth-weth",
+      "amount": "10",
+      "baseTokenId": "wsteth",
+      "quoteTokenId": "weth",
+      "networks": {
+        "ethereum": true,
+        "arbitrum": false,
+        "optimism": false,
+        "base": false,
+        "polygon": false,
+        "bsc": false,
+        "avalanche": false,
+        "mantle": false,
+        "gnosis": false,
+        "zksync": false,
+        "sei": false,
+        "linea": false,
+        "near": false,
+        "etherlink": false,
+        "katana": true,
+        "hyperevm": false,
+        "ink": false,
+        "sonic": false,
+        "unichain": false,
+        "moonbeam": false,
+        "plasma": true,
+        "monad": true,
+        "megaeth": false,
+        "solana": false,
+        "movement": false
+      }
+    },
+    {
+      "id": "weeth-weth",
+      "amount": "10",
+      "baseTokenId": "weeth",
+      "quoteTokenId": "weth",
+      "networks": {
+        "ethereum": true,
+        "arbitrum": false,
+        "optimism": false,
+        "base": false,
+        "polygon": false,
+        "bsc": false,
+        "avalanche": false,
+        "mantle": false,
+        "gnosis": false,
+        "zksync": false,
+        "sei": false,
+        "linea": false,
+        "near": false,
+        "etherlink": false,
+        "katana": true,
+        "hyperevm": false,
+        "ink": false,
+        "sonic": false,
+        "unichain": false,
+        "moonbeam": false,
+        "plasma": true,
+        "monad": true,
+        "megaeth": false,
+        "solana": false,
+        "movement": false
+      }
+    },
+    {
+      "id": "usdg-usdc",
+      "amount": "30000",
+      "baseTokenId": "usdg",
+      "quoteTokenId": "usdc",
+      "networks": {
+        "ethereum": true,
+        "arbitrum": false,
+        "optimism": false,
+        "base": false,
+        "polygon": false,
+        "bsc": false,
+        "avalanche": false,
+        "mantle": false,
+        "gnosis": false,
+        "zksync": false,
+        "sei": false,
+        "linea": false,
+        "near": false,
+        "etherlink": false,
+        "katana": false,
+        "hyperevm": false,
+        "ink": true,
+        "sonic": false,
+        "unichain": false,
+        "moonbeam": false,
+        "plasma": false,
+        "monad": false,
+        "megaeth": false,
+        "solana": true,
+        "movement": false
+      }
+    },
+    {
+      "id": "gho-usdc",
+      "amount": "50000",
+      "baseTokenId": "gho",
+      "quoteTokenId": "usdc",
+      "networks": {
+        "ethereum": true,
+        "arbitrum": true,
+        "optimism": false,
+        "base": true,
+        "polygon": false,
+        "bsc": false,
+        "avalanche": false,
+        "mantle": false,
+        "gnosis": false,
+        "zksync": false,
+        "sei": false,
+        "linea": false,
+        "near": false,
+        "etherlink": false,
+        "katana": false,
+        "hyperevm": false,
+        "ink": true,
+        "sonic": false,
+        "unichain": false,
+        "moonbeam": false,
+        "plasma": true,
+        "monad": false,
+        "megaeth": false,
+        "solana": false,
+        "movement": false
+      }
+    }
+  ],
+  "networks": [
+    {
+      "name": "Ethereum",
+      "chain": "ethereum"
+    },
+    {
+      "name": "Arbitrum",
+      "chain": "arbitrum"
+    },
+    {
+      "name": "Optimism",
+      "chain": "optimism"
+    },
+    {
+      "name": "Base",
+      "chain": "base"
+    },
+    {
+      "name": "Polygon",
+      "chain": "polygon"
+    },
+    {
+      "name": "BNB Chain",
+      "chain": "bsc"
+    },
+    {
+      "name": "Avalanche",
+      "chain": "avalanche"
+    },
+    {
+      "name": "Mantle",
+      "chain": "mantle"
+    },
+    {
+      "name": "Gnosis",
+      "chain": "gnosis"
+    },
+    {
+      "name": "zkSync",
+      "chain": "zksync"
+    },
+    {
+      "name": "Sei EVM",
+      "chain": "sei"
+    },
+    {
+      "name": "Linea",
+      "chain": "linea"
+    },
+    {
+      "name": "Near",
+      "chain": "near"
+    },
+    {
+      "name": "Etherlink",
+      "chain": "etherlink"
+    },
+    {
+      "name": "Katana",
+      "chain": "katana"
+    },
+    {
+      "name": "Hyper EVM",
+      "chain": "hyperevm"
+    },
+    {
+      "name": "Ink",
+      "chain": "ink"
+    },
+    {
+      "name": "Sonic",
+      "chain": "sonic"
+    },
+    {
+      "name": "Unichain",
+      "chain": "unichain"
+    },
+    {
+      "name": "Moonbeam",
+      "chain": "moonbeam"
+    },
+    {
+      "name": "Plasma",
+      "chain": "plasma"
+    },
+    {
+      "name": "Monad",
+      "chain": "monad"
+    },
+    {
+      "name": "MegaETH",
+      "chain": "megaeth"
+    },
+    {
+      "name": "Solana",
+      "chain": "solana"
+    },
+    {
+      "name": "Movement",
+      "chain": "movement"
+    }
+  ],
+  "pendle": {
+    "strategies": [
+      {
+        "id": "pendle-42161-299674f6da-0",
+        "enabled": false,
+        "chainId": 42161,
+        "marketAddress": "0x299674f6da858f903d77486fba50bc9f2e0db24d",
+        "amount": "10",
+        "checkIntervalMs": 15000,
+        "targetDiscountPct": 4.85,
+        "replaceLowerThresholdPct": 4.75,
+        "replaceThresholdPct": 4.95,
+        "orderExpiryMinutes": 1440,
+        "orderTokenAddress": "",
+        "orderTokenSymbol": "TOKEN",
+        "orderTokenDecimals": 18
+      }
+    ],
+    "rpcByChainId": {
+      "1": "https://eth.llamarpc.com",
+      "8453": "https://base.llamarpc.com",
+      "42161": "https://arbitrum-one-rpc.publicnode.com"
+    },
+    "limitOrderContractByChainId": {
+      "1": "0x000000000000c9b3e2c3ec88b1b4c0cd853f4321",
+      "8453": "0x000000000000c9b3e2c3ec88b1b4c0cd853f4321",
+      "42161": "0x000000000000c9b3e2c3ec88b1b4c0cd853f4321"
+    }
+  },
+  "portfolio": {
+    "refreshMs": 300000,
+    "notificationsEnabled": true,
+    "walletAddress": "0x2156f29D64f81701B58877129006E8b1964149B6",
+    "walletTag": "0x...9B6",
+    "wallets": [
+      {
+        "address": "0x2156f29D64f81701B58877129006E8b1964149B6",
+        "tag": "0x...9B6"
+      },
+      {
+        "address": "0x9629b61dc63dc5da6dbb74ad0ac47e852b4a7f5bdb421d9640b6056680b7a709",
+        "tag": "0x...A709"
+      },
+      {
+        "address": "init1y9t098tylqtsrdvgwuffqphgkxtyzjdkskezy9",
+        "tag": "init...zy9"
+      }
+    ],
+    "positions": []
+  },
+  "quoteApi": {
+    "endpoint": "https://canoe.v2.icarus.tools/market/kyberswap/swap_quote",
+    "endpointsByNetwork": {
+      "mantle": "https://canoe.v2.icarus.tools/market/openocean/swap_quote",
+      "gnosis": "https://canoe.v2.icarus.tools/market/openocean/swap_quote",
+      "sei": "https://canoe.v2.icarus.tools/market/openocean/swap_quote",
+      "katana": "https://canoe.v2.icarus.tools/market/kyberswap/swap_quote",
+      "ink": "https://canoe.v2.icarus.tools/market/kyberswap/swap_quote"
+    },
+    "account": "0xBD73cF5baf12F120Ee3f6C4ad82df9a12649e578",
+    "slippage": 1,
+    "reusdMint": {
+      "rpcUrl": "https://ethereum-rpc.publicnode.com",
+      "convertFromSharesContract": "0x4691C475bE804Fa85f91c2D6D0aDf03114de3093",
+      "convertFromSharesToken": "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
+      "sharesDecimals": 18,
+      "sampleInputAmount": "100000",
+      "sampleResponse": "0x0000000000000000000000000000000000000000000000000000000000000020000000000000000000000000000000000000000000000000000000000000000100000000000000000000000000000000000000000000000000000000000000200000000000000000000000000000000000000000000000000000000000000001000000000000000000000000000000000000000000000000000000000000004000000000000000000000000000000000000000000000000000000000000000a00000000000000000000000000000000000000000000013daba231df325a2c9440000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000100000000000000000000000000000000000000000000000000000000000000800000000000000000000000000000000000000000000000000000000000000000",
+      "redeemFeePct": 0.16
+    }
+  }
+}

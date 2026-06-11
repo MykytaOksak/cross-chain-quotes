@@ -1,0 +1,14 @@
+{
+  "crons": [
+    {
+      "path": "/api/cron/refresh-arb",
+      "schedule": "* * * * *"
+    }
+  ],
+  "rewrites": [
+    {
+      "source": "/((?!api/.*).*)",
+      "destination": "/index.html"
+    }
+  ]
+}

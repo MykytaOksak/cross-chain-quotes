@@ -1,0 +1,30 @@
+{
+  "name": "cross-chain-arb-ui",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "app:server": "node server/app-server.mjs",
+    "shared:start": "node server/shared-stack.mjs",
+    "local:start": "npm run build && npm run shared:start",
+    "local:dev": "node server/local-dev-stack.mjs",
+    "pendle:worker": "node server/pendle-worker.mjs",
+    "pendle:worker:env": "sh -c 'if [ ! -f .env.worker ]; then echo \"Missing .env.worker\"; exit 1; fi; set -a; . ./.env.worker; set +a; node server/pendle-worker.mjs'",
+    "build": "tsc -b && vite build",
+    "build:hosted": "VITE_HOSTED_MODE=true npm run build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "ethers": "^6.16.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1"
+  },
+  "devDependencies": {
+    "@types/react": "^18.3.3",
+    "@types/react-dom": "^18.3.0",
+    "@vitejs/plugin-react": "^4.3.1",
+    "typescript": "^5.5.4",
+    "vite": "^5.4.2"
+  }
+}
