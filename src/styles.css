@@ -2969,9 +2969,23 @@ select:focus {
     padding-right: 10px;
   }
 
+  .arb-quote-table thead th,
+  .arb-quote-table tbody td {
+    text-align: center;
+  }
+
   .arb-quote-table .network-heading {
     justify-content: center;
     gap: 10px;
+  }
+
+  .arb-quote-table .table-cell {
+    justify-items: center;
+    text-align: center;
+  }
+
+  .arb-quote-table .sortable-header-btn {
+    justify-content: center;
   }
 
   .arb-quote-table .network-name {
