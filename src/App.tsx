@@ -7153,7 +7153,7 @@ function App() {
                             >
                               Buy price
                               <span className="sortable-header-icon" aria-hidden="true">
-                                {buyPriceSortDir === "asc" ? "↑" : buyPriceSortDir === "desc" ? "↓" : "↕"}
+                                {buyPriceSortDir === "asc" ? "⬆️" : buyPriceSortDir === "desc" ? "⬇️" : "↕️"}
                               </span>
                             </button>
                           </th>
@@ -7166,7 +7166,7 @@ function App() {
                             >
                               Sell price
                               <span className="sortable-header-icon" aria-hidden="true">
-                                {sellPriceSortDir === "asc" ? "↑" : sellPriceSortDir === "desc" ? "↓" : "↕"}
+                                {sellPriceSortDir === "asc" ? "⬆️" : sellPriceSortDir === "desc" ? "⬇️" : "↕️"}
                               </span>
                             </button>
                           </th>
