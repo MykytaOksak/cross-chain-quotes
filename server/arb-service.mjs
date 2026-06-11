@@ -26,7 +26,10 @@ const PLASMA_USDT_PROXY_RATE_CHAIN = "arbitrum";
 const PLASMA_USDT_PROXY_RATE_LABEL = "Binance USDC/USDT";
 const PLASMA_USDT_PROXY_RATE_MIN = 0.97;
 const PLASMA_USDT_PROXY_RATE_MAX = 1.03;
-const BINANCE_USDC_USDT_PRICE_URL = "https://api.binance.com/api/v3/ticker/price?symbol=USDCUSDT";
+const BINANCE_USDC_USDT_PRICE_URLS = [
+  "https://api.binance.com/api/v3/ticker/price?symbol=USDCUSDT",
+  "https://data-api.binance.vision/api/v3/ticker/price?symbol=USDCUSDT",
+];
 const MOVEMENT_SAVUSD_ADDRESS = "0xde6eb2598d91fd43c432ba7f0bca56158525a74ac0841b749ce17bf984cf5642";
 const MOVEMENT_USDCX_ADDRESS = "0xba11833544a2f99eec743f41a228ca6ffa7f13c3b6b04681d5a79a8b75ff225e";
 const MOVEMENT_USDTE_ADDRESS = "0x447721a30109c662dde9c73a0c2c9c9c459fb5e5a9c92f03c50fa69737f5d08d";
@@ -367,8 +370,8 @@ function normalizePlasmaUsdtProxyRate(rate) {
   return value;
 }
 
-async function fetchBinanceUsdcUsdtProxyRate() {
-  const { response, text } = await fetchWithRateLimit(BINANCE_USDC_USDT_PRICE_URL, { method: "GET" });
+async function fetchBinanceUsdcUsdtProxyRateFromUrl(url) {
+  const { response, text } = await fetchWithRateLimit(url, { method: "GET" });
   let payload = {};
   try {
     payload = text ? JSON.parse(text) : {};
@@ -386,6 +389,18 @@ async function fetchBinanceUsdcUsdtProxyRate() {
     throw new Error(`Unrealistic ${PLASMA_USDT_PROXY_RATE_LABEL} rate${detail}`);
   }
   return normalized;
+}
+
+async function fetchBinanceUsdcUsdtProxyRate() {
+  const errors = [];
+  for (const url of BINANCE_USDC_USDT_PRICE_URLS) {
+    try {
+      return await fetchBinanceUsdcUsdtProxyRateFromUrl(url);
+    } catch (error) {
+      errors.push(error instanceof Error ? error.message : String(error ?? "Unknown error"));
+    }
+  }
+  throw new Error(errors.join("; ") || `Missing ${PLASMA_USDT_PROXY_RATE_LABEL} rate`);
 }
 
 function isUnrealisticStableSellQuote(pair, fromAmount, receiveAmount) {
@@ -1786,10 +1801,12 @@ export async function buildArbSnapshot(configPath, options = {}) {
   publishSnapshot();
 
   let usdcUsdtRate = null;
+  let usdcUsdtRateError = null;
   try {
     usdcUsdtRate = await fetchBinanceUsdcUsdtProxyRate();
-  } catch {
+  } catch (error) {
     usdcUsdtRate = null;
+    usdcUsdtRateError = error instanceof Error ? error.message : String(error ?? "Unknown error");
   }
   const processTask = async (task) => {
     const { pair, net, combos, error, baseSymbol, quoteSymbol, includeMintRedeem } = task;
@@ -1824,7 +1841,9 @@ export async function buildArbSnapshot(configPath, options = {}) {
       quoteMap[pair.id][net.chain] = results.map((item) => ({
         ...item,
         status: "error",
-        error: `Missing ${PLASMA_USDT_PROXY_RATE_LABEL} rate`,
+        error: usdcUsdtRateError
+          ? `Missing ${PLASMA_USDT_PROXY_RATE_LABEL} rate: ${usdcUsdtRateError}`
+          : `Missing ${PLASMA_USDT_PROXY_RATE_LABEL} rate`,
         updatedAt: Date.now(),
       }));
       publishSnapshot();
