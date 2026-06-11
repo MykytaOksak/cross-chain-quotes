@@ -1837,16 +1837,26 @@ body {
 
 .arb-pair-filter-chip.disabled {
   color: var(--text-2);
-  background: var(--card-2);
+  background: var(--card-solid);
   border-color: var(--line);
-  opacity: 0.58;
 }
 
 .arb-pair-filter-chip.disabled.active {
-  opacity: 0.78;
   background: var(--card);
   border-color: var(--line);
   box-shadow: none;
+}
+
+:root[data-theme="light"] .arb-pair-filter-chip.disabled {
+  background: #f8f8f8;
+  border-color: rgba(0, 0, 0, 0.16);
+  color: #8a8a8a;
+}
+
+:root[data-theme="light"] .arb-pair-filter-chip.disabled.active {
+  background: #ffffff;
+  border-color: rgba(0, 0, 0, 0.18);
+  color: #6f6f6f;
 }
 
 .arb-pair-filter-chip:hover,
