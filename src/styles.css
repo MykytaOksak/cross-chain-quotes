@@ -3107,6 +3107,15 @@ select:focus {
     text-align: center;
   }
 
+  .arb-quote-table .skeleton-stack {
+    width: min(120px, 100%);
+    min-width: 78px;
+  }
+
+  .arb-quote-table .table-cell-price .skeleton-stack {
+    width: min(96px, 100%);
+  }
+
   .arb-quote-table .sortable-header-btn {
     justify-content: center;
   }
