@@ -1252,6 +1252,7 @@
   "quoteApi": {
     "endpoint": "https://canoe.v2.icarus.tools/market/kyberswap/swap_quote",
     "endpointsByNetwork": {
+      "ethereum": "https://canoe.v2.icarus.tools/market/okx/swap_quote",
       "mantle": "https://canoe.v2.icarus.tools/market/openocean/swap_quote",
       "gnosis": "https://canoe.v2.icarus.tools/market/openocean/swap_quote",
       "sei": "https://canoe.v2.icarus.tools/market/openocean/swap_quote",

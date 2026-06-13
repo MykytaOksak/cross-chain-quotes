@@ -363,6 +363,11 @@ function findBestOutAmount(payload) {
   );
 }
 
+function getMarketNameFromEndpoint(endpoint) {
+  const match = String(endpoint ?? "").match(/\/market\/([^/]+)\/swap_quote/i);
+  return match?.[1] ?? "";
+}
+
 function normalizePlasmaUsdtProxyRate(rate) {
   const value = Number(rate);
   if (!Number.isFinite(value) || value <= 0) return null;
@@ -697,7 +702,12 @@ async function fetchCanoeQuote(endpoint, chain, account, tokenIn, tokenOut, amou
   if (!response.ok) {
     throw new HttpError(response.status, `HTTP ${response.status}: ${text.slice(0, 160)}`);
   }
-  return findBestOutAmount(JSON.parse(text));
+  const quote = findBestOutAmount(JSON.parse(text));
+  const endpointMarket = getMarketNameFromEndpoint(endpoint);
+  if (endpointMarket && (!quote.name || quote.name === "direct" || quote.name === "unknown")) {
+    return { ...quote, name: endpointMarket };
+  }
+  return quote;
 }
 
 function normalizeTokenAddress(address) {
