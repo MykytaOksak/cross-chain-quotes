@@ -222,7 +222,7 @@ export async function evaluatePriceAlerts(snapshot, store) {
             `${alert.side === "buy" ? "📉" : "📈"} ${sideLabel}: ${formatPrice(price)}`,
             "",
             `🎯 Trigger: ${alert.operator} ${formatPrice(alert.price)}`,
-          ].filter(Boolean).join("\n");
+          ].join("\n");
           try {
             const didSend = await sendTelegram(record, message);
             if (didSend) {
