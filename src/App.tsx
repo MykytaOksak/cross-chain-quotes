@@ -4685,6 +4685,7 @@ function App() {
   const [hostedPairOverrides, setHostedPairOverrides] = useState<HostedPairOverrides>(() => loadHostedPairOverrides());
   const [hostedUserId] = useState(() => loadHostedUserId());
   const [hostedPriceAlerts, setHostedPriceAlerts] = useState<HostedPriceAlertsState>(() => loadHostedPriceAlertsState());
+  const [hostedAlertPriceDrafts, setHostedAlertPriceDrafts] = useState<Record<string, string>>({});
   const [editingHostedPairId, setEditingHostedPairId] = useState<string | null>(null);
   const [editingHostedAlertPairId, setEditingHostedAlertPairId] = useState<string | null>(null);
   const [hostedAlertSaveStatus, setHostedAlertSaveStatus] = useState<"idle" | "saving" | "saved" | "error">("idle");
@@ -4823,6 +4824,10 @@ function App() {
     if (!IS_HOSTED_MODE || !editingHostedAlertPairId) return;
     void loadHostedTelegramConnect();
   }, [editingHostedAlertPairId, loadHostedTelegramConnect]);
+
+  useEffect(() => {
+    setHostedAlertPriceDrafts({});
+  }, [editingHostedAlertPairId]);
 
   const toggleHostedPairEnabled = useCallback((pairId: string) => {
     if (!IS_HOSTED_MODE) return;
@@ -5416,6 +5421,36 @@ function App() {
     });
     setHostedAlertSaveStatus("idle");
   }, [getHostedPairAlert]);
+
+  const getHostedAlertDraftKey = useCallback((pairId: string, side: HostedPriceAlertSide) => `${pairId}:${side}`, []);
+
+  const updateHostedAlertPriceDraft = useCallback(
+    (pairId: string, side: HostedPriceAlertSide, value: string) => {
+      const draftKey = getHostedAlertDraftKey(pairId, side);
+      setHostedAlertPriceDrafts((prev) => ({ ...prev, [draftKey]: value }));
+      const price = Number(value);
+      if (value.trim() !== "" && Number.isFinite(price) && price > 0) {
+        upsertHostedPairAlert(pairId, side, { price });
+      }
+    },
+    [getHostedAlertDraftKey, upsertHostedPairAlert]
+  );
+
+  const clearHostedAlertPriceDraftIfInvalid = useCallback(
+    (pairId: string, side: HostedPriceAlertSide) => {
+      const draftKey = getHostedAlertDraftKey(pairId, side);
+      setHostedAlertPriceDrafts((prev) => {
+        const value = prev[draftKey];
+        if (typeof value === "undefined") return prev;
+        const price = Number(value);
+        if (value.trim() !== "" && Number.isFinite(price) && price > 0) return prev;
+        const next = { ...prev };
+        delete next[draftKey];
+        return next;
+      });
+    },
+    [getHostedAlertDraftKey]
+  );
 
   const saveHostedPriceAlerts = useCallback(async () => {
     if (!IS_HOSTED_MODE || !hostedUserId) return;
@@ -8972,6 +9007,8 @@ function App() {
                 const alert = getHostedPairAlert(editingHostedAlertPair.id, side);
                 const allNetworks = alert.networks.length === 0;
                 const title = side === "buy" ? "Buy price alert" : "Sell price alert";
+                const priceDraftKey = getHostedAlertDraftKey(editingHostedAlertPair.id, side);
+                const priceDraftValue = hostedAlertPriceDrafts[priceDraftKey];
                 return (
                   <section className="pair-alert-card" key={side}>
                     <div className="pair-alert-card-header">
@@ -9005,12 +9042,9 @@ function App() {
                           type="number"
                           min="0"
                           step="any"
-                          value={alert.price}
-                          onChange={(event) =>
-                            upsertHostedPairAlert(editingHostedAlertPair.id, side, {
-                              price: Number(event.target.value),
-                            })
-                          }
+                          value={priceDraftValue ?? String(alert.price)}
+                          onChange={(event) => updateHostedAlertPriceDraft(editingHostedAlertPair.id, side, event.target.value)}
+                          onBlur={() => clearHostedAlertPriceDraftIfInvalid(editingHostedAlertPair.id, side)}
                         />
                       </label>
                       <label className="pair-settings-field">
