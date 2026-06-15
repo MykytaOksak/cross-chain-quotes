@@ -214,16 +214,14 @@ export async function evaluatePriceAlerts(snapshot, store) {
           if (price === null || !isTriggered(price, alert)) continue;
           const pairLabel = getPairLabel(settings, alert.pairId);
           const sideLabel = alert.side === "buy" ? "Buy price" : "Sell price";
-          const market = alert.side === "buy" ? quote.buy?.market : quote.sell?.market;
           const message = [
-            "Price alert triggered",
+            "🚨 Price Alert",
             "",
-            `Pair: ${pairLabel}`,
-            `Network: ${getNetworkName(settings, networkId)}`,
-            `Side: ${sideLabel}`,
-            `Price: ${formatPrice(price)}`,
-            `Condition: ${alert.operator} ${formatPrice(alert.price)}`,
-            market ? `Market: ${market}` : "",
+            `💱 ${pairLabel}`,
+            `🌐 ${getNetworkName(settings, networkId)}`,
+            `${alert.side === "buy" ? "📉" : "📈"} ${sideLabel}: ${formatPrice(price)}`,
+            "",
+            `🎯 Trigger: ${alert.operator} ${formatPrice(alert.price)}`,
           ].filter(Boolean).join("\n");
           try {
             const didSend = await sendTelegram(record, message);
