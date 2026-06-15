@@ -451,13 +451,21 @@ type HostedPriceAlert = {
   updatedAt?: number;
 };
 type HostedTelegramAlertSettings = {
-  botToken: string;
   chatId: string;
+  username: string;
+  firstName: string;
+  connectedAt: number;
   enabled: boolean;
 };
 type HostedPriceAlertsState = {
   telegram: HostedTelegramAlertSettings;
   alerts: HostedPriceAlert[];
+};
+type HostedTelegramConnectState = {
+  loading: boolean;
+  error: string | null;
+  botUsername: string;
+  startUrl: string;
 };
 type ThemeMode = "system" | "dark" | "light";
 type TabId = "arb" | "arb-new" | "portfolio" | "pendle";
@@ -683,11 +691,16 @@ function sanitizeHostedPriceAlert(value: unknown): HostedPriceAlert | null {
 function sanitizeHostedPriceAlertsState(value: unknown): HostedPriceAlertsState {
   const raw = value && typeof value === "object" && !Array.isArray(value) ? value as Partial<HostedPriceAlertsState> : {};
   const telegram = raw.telegram && typeof raw.telegram === "object" && !Array.isArray(raw.telegram) ? raw.telegram : {};
+  const telegramChatId = String((telegram as Partial<HostedTelegramAlertSettings>).chatId ?? "").trim();
   return {
     telegram: {
-      botToken: String((telegram as Partial<HostedTelegramAlertSettings>).botToken ?? "").trim(),
-      chatId: String((telegram as Partial<HostedTelegramAlertSettings>).chatId ?? "").trim(),
-      enabled: Boolean((telegram as Partial<HostedTelegramAlertSettings>).enabled),
+      chatId: telegramChatId,
+      username: String((telegram as Partial<HostedTelegramAlertSettings>).username ?? "").trim(),
+      firstName: String((telegram as Partial<HostedTelegramAlertSettings>).firstName ?? "").trim(),
+      connectedAt: Number.isFinite(Number((telegram as Partial<HostedTelegramAlertSettings>).connectedAt))
+        ? Number((telegram as Partial<HostedTelegramAlertSettings>).connectedAt)
+        : 0,
+      enabled: Boolean((telegram as Partial<HostedTelegramAlertSettings>).enabled && telegramChatId),
     },
     alerts: Array.isArray(raw.alerts) ? raw.alerts.map(sanitizeHostedPriceAlert).filter(Boolean) as HostedPriceAlert[] : [],
   };
@@ -695,13 +708,13 @@ function sanitizeHostedPriceAlertsState(value: unknown): HostedPriceAlertsState 
 
 function loadHostedPriceAlertsState(): HostedPriceAlertsState {
   if (!IS_HOSTED_MODE || typeof window === "undefined") {
-    return { telegram: { botToken: "", chatId: "", enabled: false }, alerts: [] };
+    return { telegram: { chatId: "", username: "", firstName: "", connectedAt: 0, enabled: false }, alerts: [] };
   }
   try {
     const raw = localStorage.getItem(HOSTED_PRICE_ALERTS_STORAGE_KEY);
     return sanitizeHostedPriceAlertsState(raw ? JSON.parse(raw) : {});
   } catch {
-    return { telegram: { botToken: "", chatId: "", enabled: false }, alerts: [] };
+    return { telegram: { chatId: "", username: "", firstName: "", connectedAt: 0, enabled: false }, alerts: [] };
   }
 }
 
@@ -4675,6 +4688,12 @@ function App() {
   const [editingHostedPairId, setEditingHostedPairId] = useState<string | null>(null);
   const [editingHostedAlertPairId, setEditingHostedAlertPairId] = useState<string | null>(null);
   const [hostedAlertSaveStatus, setHostedAlertSaveStatus] = useState<"idle" | "saving" | "saved" | "error">("idle");
+  const [hostedTelegramConnect, setHostedTelegramConnect] = useState<HostedTelegramConnectState>({
+    loading: false,
+    error: null,
+    botUsername: "",
+    startUrl: "",
+  });
   const [quoteMap, setQuoteMap] = useState<QuoteMap>({});
   const [lastUpdated, setLastUpdated] = useState<number | null>(null);
   const [arbError, setArbError] = useState<string | null>(null);
@@ -4746,20 +4765,64 @@ function App() {
     localStorage.setItem(HOSTED_PRICE_ALERTS_STORAGE_KEY, JSON.stringify(hostedPriceAlerts));
   }, [hostedPriceAlerts]);
 
+  const refreshHostedPriceAlerts = useCallback(async () => {
+    if (!IS_HOSTED_MODE || !hostedUserId) return null;
+    const response = await fetch(`/api/alerts?userId=${encodeURIComponent(hostedUserId)}`);
+    if (!response.ok) return null;
+    const payload = await response.json();
+    if (!payload?.ok) return null;
+    const next = sanitizeHostedPriceAlertsState(payload);
+    setHostedPriceAlerts(next);
+    return next;
+  }, [hostedUserId]);
+
+  const loadHostedTelegramConnect = useCallback(async () => {
+    if (!IS_HOSTED_MODE || !hostedUserId) return null;
+    setHostedTelegramConnect((prev) => ({ ...prev, loading: true, error: null }));
+    try {
+      const response = await fetch(`/api/telegram/connect?userId=${encodeURIComponent(hostedUserId)}`);
+      const payload = await response.json().catch(() => null);
+      if (!response.ok || !payload?.ok) {
+        throw new Error(payload?.error ?? "Telegram connect is not configured");
+      }
+      setHostedTelegramConnect({
+        loading: false,
+        error: null,
+        botUsername: String(payload.botUsername ?? ""),
+        startUrl: String(payload.startUrl ?? ""),
+      });
+      if (payload.telegram) {
+        setHostedPriceAlerts((prev) => sanitizeHostedPriceAlertsState({ ...prev, telegram: payload.telegram }));
+      }
+      return payload;
+    } catch (error) {
+      setHostedTelegramConnect({
+        loading: false,
+        error: error instanceof Error ? error.message : "Telegram connect failed",
+        botUsername: "",
+        startUrl: "",
+      });
+      return null;
+    }
+  }, [hostedUserId]);
+
   useEffect(() => {
     if (!IS_HOSTED_MODE || !hostedUserId) return;
     let cancelled = false;
-    fetch(`/api/alerts?userId=${encodeURIComponent(hostedUserId)}`)
-      .then((response) => (response.ok ? response.json() : null))
+    refreshHostedPriceAlerts()
       .then((payload) => {
-        if (cancelled || !payload?.ok) return;
-        setHostedPriceAlerts(sanitizeHostedPriceAlertsState(payload));
+        if (cancelled || !payload) return;
       })
       .catch(() => undefined);
     return () => {
       cancelled = true;
     };
-  }, [hostedUserId]);
+  }, [hostedUserId, refreshHostedPriceAlerts]);
+
+  useEffect(() => {
+    if (!IS_HOSTED_MODE || !editingHostedAlertPairId) return;
+    void loadHostedTelegramConnect();
+  }, [editingHostedAlertPairId, loadHostedTelegramConnect]);
 
   const toggleHostedPairEnabled = useCallback((pairId: string) => {
     if (!IS_HOSTED_MODE) return;
@@ -5354,16 +5417,10 @@ function App() {
     setHostedAlertSaveStatus("idle");
   }, [getHostedPairAlert]);
 
-  const updateHostedTelegramAlerts = useCallback((patch: Partial<HostedTelegramAlertSettings>) => {
-    setHostedPriceAlerts((prev) => ({
-      ...prev,
-      telegram: {
-        ...prev.telegram,
-        ...patch,
-      },
-    }));
-    setHostedAlertSaveStatus("idle");
-  }, []);
+  const openHostedTelegramConnect = useCallback(() => {
+    if (!hostedTelegramConnect.startUrl || typeof window === "undefined") return;
+    window.open(hostedTelegramConnect.startUrl, "_blank", "noopener,noreferrer");
+  }, [hostedTelegramConnect.startUrl]);
 
   const saveHostedPriceAlerts = useCallback(async () => {
     if (!IS_HOSTED_MODE || !hostedUserId) return;
@@ -8870,33 +8927,43 @@ function App() {
             </div>
             <div className="pair-settings-content pair-alert-settings-content">
               <section className="pair-alert-telegram">
-                <label className="pair-network-option pair-alert-toggle-row">
-                  <input
-                    type="checkbox"
-                    checked={hostedPriceAlerts.telegram.enabled}
-                    onChange={(event) => updateHostedTelegramAlerts({ enabled: event.target.checked })}
-                  />
-                  <span>Telegram alerts</span>
-                </label>
-                <label className="pair-settings-field">
-                  Bot token
-                  <input
-                    type="password"
-                    autoComplete="off"
-                    value={hostedPriceAlerts.telegram.botToken}
-                    onChange={(event) => updateHostedTelegramAlerts({ botToken: event.target.value })}
-                    placeholder="123456:ABC..."
-                  />
-                </label>
-                <label className="pair-settings-field">
-                  Chat ID
-                  <input
-                    type="text"
-                    value={hostedPriceAlerts.telegram.chatId}
-                    onChange={(event) => updateHostedTelegramAlerts({ chatId: event.target.value })}
-                    placeholder="123456789"
-                  />
-                </label>
+                <div className="pair-alert-telegram-header">
+                  <div>
+                    <div className="pair-settings-title">Telegram</div>
+                    <div className="pair-alert-telegram-status">
+                      {hostedPriceAlerts.telegram.enabled
+                        ? `Connected${hostedPriceAlerts.telegram.username ? ` to @${hostedPriceAlerts.telegram.username}` : ""}`
+                        : "Not connected"}
+                    </div>
+                  </div>
+                  <span className={`pair-alert-connection-pill ${hostedPriceAlerts.telegram.enabled ? "connected" : ""}`}>
+                    {hostedPriceAlerts.telegram.enabled ? "Connected" : "Disconnected"}
+                  </span>
+                </div>
+                <div className="pair-alert-telegram-actions">
+                  <button
+                    type="button"
+                    className="pair-enabled-toggle enabled"
+                    disabled={hostedTelegramConnect.loading || !hostedTelegramConnect.startUrl}
+                    onClick={openHostedTelegramConnect}
+                  >
+                    {hostedTelegramConnect.loading ? "Loading..." : "Connect Telegram"}
+                  </button>
+                  <button
+                    type="button"
+                    className="settings-reset-btn"
+                    disabled={hostedTelegramConnect.loading}
+                    onClick={() => void loadHostedTelegramConnect()}
+                  >
+                    Check connection
+                  </button>
+                </div>
+                {hostedTelegramConnect.botUsername ? (
+                  <div className="pair-alert-user-id">Bot: @{hostedTelegramConnect.botUsername}</div>
+                ) : null}
+                {hostedTelegramConnect.error ? (
+                  <div className="pair-alert-connect-error">{hostedTelegramConnect.error}</div>
+                ) : null}
                 <div className="pair-alert-user-id">Alert profile: {hostedUserId}</div>
               </section>
 

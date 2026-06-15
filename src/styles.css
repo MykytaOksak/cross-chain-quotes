@@ -2536,6 +2536,53 @@ body {
   background: var(--card);
 }
 
+.pair-alert-telegram-header,
+.pair-alert-telegram-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.pair-alert-telegram-actions {
+  justify-content: flex-start;
+  flex-wrap: wrap;
+}
+
+.pair-alert-telegram-status {
+  margin-top: 3px;
+  color: var(--text-2);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.pair-alert-connection-pill {
+  min-height: 26px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 10px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  color: var(--text-2);
+  background: var(--card-solid);
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.pair-alert-connection-pill.connected {
+  color: rgb(111, 227, 206);
+  border-color: rgba(111, 227, 206, 0.45);
+  background: rgba(82, 196, 178, 0.12);
+}
+
+.pair-alert-connect-error {
+  color: rgb(255, 143, 143);
+  font-size: 12px;
+  font-weight: 700;
+  overflow-wrap: anywhere;
+}
+
 .pair-alert-toggle-row {
   min-height: 36px;
   justify-content: flex-start;

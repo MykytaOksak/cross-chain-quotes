@@ -10,7 +10,7 @@ The Vercel build is a lighter public version:
 - `Portfolio` tab is visible but intentionally empty.
 - `Pendle` is hidden.
 - Portfolio wallet scanning is disabled.
-- Telegram bot token and chat ID are not stored in `src/config.json`; add them from the frontend settings when you want browser-configured alerts.
+- Telegram bot token is server-only. Users connect their own Telegram chat from the alert modal by opening the bot and pressing Start.
 
 Use this build command on Vercel:
 
@@ -24,6 +24,10 @@ The project includes Vercel API routes under `api/`:
 - `/api/shared/config`
 - `/api/shared/arb-snapshot`
 - `/api/telegram/send-message`
+- `/api/telegram/connect`
+- `/api/telegram/webhook`
+- `/api/alerts`
+- `/api/cron/check-alerts`
 
 Quote snapshots need durable storage on Vercel. Connect Vercel KV or Upstash Redis and provide either of these env var pairs:
 
@@ -40,6 +44,36 @@ UPSTASH_REDIS_REST_TOKEN=...
 ```
 
 On Vercel Hobby, Cron Jobs are limited to daily schedules, so this project does not require a cron job. The frontend reads `/api/shared/arb-snapshot`; that route refreshes stale quote snapshots on demand and stores the latest result in Redis/KV.
+
+Price alerts are checked by GitHub Actions instead of Vercel Cron. Add these repository secrets in GitHub:
+
+```bash
+ALERTS_CRON_SECRET=...
+ALERTS_ENDPOINT=https://cross-quotes.vercel.app/api/cron/check-alerts
+```
+
+Add the same cron secret in Vercel:
+
+```bash
+ALERTS_CRON_SECRET=...
+```
+
+For Telegram delivery, create one Telegram bot and add these Vercel environment variables:
+
+```bash
+TELEGRAM_BOT_TOKEN=...
+TELEGRAM_WEBHOOK_SECRET=...
+```
+
+Then register the webhook once:
+
+```bash
+curl "https://api.telegram.org/bot$TELEGRAM_BOT_TOKEN/setWebhook" \
+  -d "url=https://cross-quotes.vercel.app/api/telegram/webhook" \
+  -d "secret_token=$TELEGRAM_WEBHOOK_SECRET"
+```
+
+Users do not need to paste a chat ID. In the pair alert modal, click the bell button, choose `Connect Telegram`, open the bot link, press Start, then click `Check connection`.
 
 Do not add Pendle private keys to Vercel for this hosted Arb-only version. Keep `.env.worker` local-only.
 

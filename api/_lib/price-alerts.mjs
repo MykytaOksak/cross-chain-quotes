@@ -23,10 +23,13 @@ function makeId() {
 
 function sanitizeTelegram(value) {
   const raw = value && typeof value === "object" && !Array.isArray(value) ? value : {};
+  const chatId = String(raw.chatId ?? raw.chat_id ?? "").trim();
   return {
-    botToken: String(raw.botToken ?? "").trim(),
-    chatId: String(raw.chatId ?? raw.chat_id ?? "").trim(),
-    enabled: Boolean(raw.enabled),
+    chatId,
+    username: String(raw.username ?? "").trim(),
+    firstName: String(raw.firstName ?? raw.first_name ?? "").trim(),
+    connectedAt: Number.isFinite(Number(raw.connectedAt)) ? Number(raw.connectedAt) : 0,
+    enabled: Boolean(raw.enabled && chatId),
   };
 }
 
@@ -99,7 +102,39 @@ export async function saveUserPriceAlerts(userId, payload) {
     throw new Error("Invalid userId");
   }
   const store = await loadPriceAlertsStore();
-  store.users[userId] = sanitizeUserRecord({ ...payload, updatedAt: Date.now() });
+  const previous = store.users[userId] ?? sanitizeUserRecord({});
+  const next = sanitizeUserRecord({ ...payload, updatedAt: Date.now() });
+  const incomingTelegram = sanitizeTelegram(payload?.telegram);
+  store.users[userId] = sanitizeUserRecord({
+    ...next,
+    telegram: incomingTelegram.chatId ? incomingTelegram : previous.telegram,
+    updatedAt: Date.now(),
+  });
+  await savePriceAlertsStore(store);
+  return store.users[userId];
+}
+
+export async function connectUserTelegram(userId, chat) {
+  if (!isUserId(userId)) {
+    throw new Error("Invalid userId");
+  }
+  const chatId = String(chat?.id ?? chat?.chatId ?? chat?.chat_id ?? "").trim();
+  if (!chatId) {
+    throw new Error("Invalid Telegram chat");
+  }
+  const store = await loadPriceAlertsStore();
+  const previous = store.users[userId] ?? sanitizeUserRecord({});
+  store.users[userId] = sanitizeUserRecord({
+    ...previous,
+    telegram: {
+      chatId,
+      username: chat?.username ?? "",
+      firstName: chat?.first_name ?? chat?.firstName ?? "",
+      connectedAt: Date.now(),
+      enabled: true,
+    },
+    updatedAt: Date.now(),
+  });
   await savePriceAlertsStore(store);
   return store.users[userId];
 }
@@ -142,8 +177,9 @@ function formatPrice(value) {
 
 async function sendTelegram(record, text) {
   const telegram = record.telegram ?? {};
-  if (!telegram.enabled || !telegram.botToken || !telegram.chatId) return false;
-  const response = await fetch(`https://api.telegram.org/bot${telegram.botToken}/sendMessage`, {
+  const botToken = String(process.env.TELEGRAM_BOT_TOKEN ?? "").trim();
+  if (!telegram.enabled || !telegram.chatId || !botToken) return false;
+  const response = await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify({ chat_id: telegram.chatId, text: text.slice(0, MAX_TEXT_LEN) }),
