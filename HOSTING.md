@@ -43,20 +43,34 @@ UPSTASH_REDIS_REST_URL=...
 UPSTASH_REDIS_REST_TOKEN=...
 ```
 
-On Vercel Hobby, Cron Jobs are limited to daily schedules, so this project does not require a cron job. The frontend reads `/api/shared/arb-snapshot`; that route refreshes stale quote snapshots on demand and stores the latest result in Redis/KV.
+On Vercel Hobby, Cron Jobs are limited to daily schedules, so this project does not use Vercel Cron. The frontend reads `/api/shared/arb-snapshot`; that route refreshes stale quote snapshots on demand and stores the latest result in Redis/KV.
 
-Price alerts are checked by GitHub Actions instead of Vercel Cron. Add these repository secrets in GitHub:
-
-```bash
-ALERTS_CRON_SECRET=...
-ALERTS_ENDPOINT=https://cross-quotes.vercel.app/api/cron/check-alerts
-```
-
-Add the same cron secret in Vercel:
+Price alerts are checked by Cloudflare Workers Cron Triggers instead of Vercel Cron or GitHub Actions. Add this cron secret in Vercel:
 
 ```bash
 ALERTS_CRON_SECRET=...
 ```
+
+Then deploy the Cloudflare Worker:
+
+```bash
+cd cloudflare-alerts-worker
+npm install
+npx wrangler login
+npx wrangler secret put ALERTS_CRON_SECRET
+npx wrangler deploy
+```
+
+Use the same `ALERTS_CRON_SECRET` value that you set in Vercel. The worker runs every 5 minutes and calls `https://cross-quotes.vercel.app/api/cron/check-alerts`.
+
+If you need a different endpoint, edit `cloudflare-alerts-worker/wrangler.toml`:
+
+```toml
+[vars]
+ALERTS_ENDPOINT = "https://your-domain.example/api/cron/check-alerts"
+```
+
+The GitHub Actions workflow `Check price alerts` is kept as a manual fallback only. It no longer has a scheduled trigger.
 
 For Telegram delivery, create one Telegram bot and add these Vercel environment variables:
 

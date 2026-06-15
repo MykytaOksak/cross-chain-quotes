@@ -8,3 +8,4 @@ dist/
 .DS_Store
 data/
 ~/
+cloudflare-alerts-worker/.wrangler/

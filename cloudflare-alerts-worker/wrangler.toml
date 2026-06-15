@@ -1,0 +1,9 @@
+name = "cross-quotes-alert-cron"
+main = "src/index.js"
+compatibility_date = "2026-06-15"
+
+[triggers]
+crons = ["*/5 * * * *"]
+
+[vars]
+ALERTS_ENDPOINT = "https://cross-quotes.vercel.app/api/cron/check-alerts"
