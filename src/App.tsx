@@ -5417,11 +5417,6 @@ function App() {
     setHostedAlertSaveStatus("idle");
   }, [getHostedPairAlert]);
 
-  const openHostedTelegramConnect = useCallback(() => {
-    if (!hostedTelegramConnect.startUrl || typeof window === "undefined") return;
-    window.open(hostedTelegramConnect.startUrl, "_blank", "noopener,noreferrer");
-  }, [hostedTelegramConnect.startUrl]);
-
   const saveHostedPriceAlerts = useCallback(async () => {
     if (!IS_HOSTED_MODE || !hostedUserId) return;
     setHostedAlertSaveStatus("saving");
@@ -8941,14 +8936,20 @@ function App() {
                   </span>
                 </div>
                 <div className="pair-alert-telegram-actions">
-                  <button
-                    type="button"
-                    className="pair-enabled-toggle enabled"
-                    disabled={hostedTelegramConnect.loading || !hostedTelegramConnect.startUrl}
-                    onClick={openHostedTelegramConnect}
+                  <a
+                    className={`pair-enabled-toggle enabled ${hostedTelegramConnect.loading || !hostedTelegramConnect.startUrl ? "is-disabled" : ""}`}
+                    href={hostedTelegramConnect.startUrl || undefined}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    aria-disabled={hostedTelegramConnect.loading || !hostedTelegramConnect.startUrl}
+                    onClick={(event) => {
+                      if (hostedTelegramConnect.loading || !hostedTelegramConnect.startUrl) {
+                        event.preventDefault();
+                      }
+                    }}
                   >
                     {hostedTelegramConnect.loading ? "Loading..." : "Connect Telegram"}
-                  </button>
+                  </a>
                   <button
                     type="button"
                     className="settings-reset-btn"
