@@ -554,7 +554,8 @@ body {
   background: rgba(255, 255, 255, 0.04);
 }
 
-.pair-edit-toggle {
+.pair-edit-toggle,
+.pair-alert-toggle {
   width: 32px;
   height: 32px;
   flex: 0 0 auto;
@@ -567,12 +568,20 @@ body {
   cursor: pointer;
 }
 
-.pair-edit-toggle:hover {
+.pair-edit-toggle:hover,
+.pair-alert-toggle:hover {
   color: var(--text-1);
   border-color: rgb(111, 227, 206);
 }
 
-.pair-edit-toggle svg {
+.pair-alert-toggle.active {
+  color: rgb(111, 227, 206);
+  border-color: rgba(111, 227, 206, 0.45);
+  background: rgba(111, 227, 206, 0.1);
+}
+
+.pair-edit-toggle svg,
+.pair-alert-toggle svg {
   width: 16px;
   height: 16px;
 }
@@ -2458,6 +2467,10 @@ body {
   overflow: auto;
 }
 
+.pair-alert-settings-content {
+  gap: 14px;
+}
+
 .pair-settings-field {
   display: grid;
   gap: 8px;
@@ -2509,6 +2522,73 @@ body {
   accent-color: rgb(82, 196, 178);
 }
 
+.pair-network-option.muted {
+  color: var(--text-2);
+}
+
+.pair-alert-telegram,
+.pair-alert-card {
+  display: grid;
+  gap: 12px;
+  padding: 14px;
+  border-radius: 10px;
+  border: 1px solid var(--line);
+  background: var(--card);
+}
+
+.pair-alert-toggle-row {
+  min-height: 36px;
+  justify-content: flex-start;
+}
+
+.pair-alert-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.pair-alert-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(120px, 0.55fr);
+  gap: 12px;
+}
+
+.pair-alert-select {
+  min-height: 36px;
+  border-radius: 8px;
+  border: 1px solid var(--line);
+  background: var(--card);
+  color: var(--text-1);
+  padding: 0 10px;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.pair-alert-user-id {
+  color: var(--text-3);
+  font-size: 11px;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.pair-alert-save-status {
+  margin-right: auto;
+  min-height: 20px;
+  color: var(--text-2);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.pair-alert-save-status.saved {
+  color: rgb(111, 227, 206);
+}
+
+.pair-alert-save-status.error {
+  color: rgb(255, 143, 143);
+}
+
 .pair-settings-actions {
   display: flex;
   justify-content: flex-end;
@@ -2523,6 +2603,17 @@ body {
   align-items: center;
   justify-content: center;
   text-align: center;
+}
+
+@media (max-width: 640px) {
+  .pair-alert-card-header,
+  .pair-alert-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .pair-alert-card-header {
+    align-items: stretch;
+  }
 }
 
 .settings-layout {

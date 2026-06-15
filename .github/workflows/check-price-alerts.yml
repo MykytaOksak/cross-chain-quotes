@@ -1,0 +1,24 @@
+name: Check price alerts
+
+on:
+  schedule:
+    - cron: "*/5 * * * *"
+  workflow_dispatch:
+
+jobs:
+  check-price-alerts:
+    runs-on: ubuntu-latest
+    timeout-minutes: 6
+    env:
+      ALERTS_ENDPOINT: ${{ vars.ALERTS_ENDPOINT || 'https://cross-quotes.vercel.app/api/cron/check-alerts' }}
+      ALERTS_CRON_SECRET: ${{ secrets.ALERTS_CRON_SECRET }}
+    steps:
+      - name: Trigger alert checker
+        shell: bash
+        run: |
+          set -euo pipefail
+          args=(-fsS -X POST)
+          if [ -n "${ALERTS_CRON_SECRET:-}" ]; then
+            args+=(-H "authorization: Bearer ${ALERTS_CRON_SECRET}")
+          fi
+          curl "${args[@]}" "$ALERTS_ENDPOINT"
