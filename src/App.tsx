@@ -424,6 +424,7 @@ const STORAGE_KEY = "cca.settings.v1";
 const THEME_STORAGE_KEY = "cca.theme.v1";
 const TAB_STORAGE_KEY = "cca.tab.v1";
 const NOTIFICATIONS_STORAGE_KEY = "cca.notifications.v1";
+const PORTFOLIO_STATUS_STORAGE_KEY = "cca.portfolio.rangeStatus.v1";
 const HOSTED_ENABLED_PAIRS_STORAGE_KEY = "cca.hosted.enabledPairs.v1";
 const HOSTED_PAIR_OVERRIDES_STORAGE_KEY = "cca.hosted.pairOverrides.v1";
 const HOSTED_USER_ID_STORAGE_KEY = "cca.hosted.userId.v1";
@@ -715,6 +716,31 @@ function loadHostedPriceAlertsState(): HostedPriceAlertsState {
     return sanitizeHostedPriceAlertsState(raw ? JSON.parse(raw) : {});
   } catch {
     return { telegram: { chatId: "", username: "", firstName: "", connectedAt: 0, enabled: false }, alerts: [] };
+  }
+}
+
+function loadPortfolioRangeStatus(): Record<string, boolean> {
+  if (typeof window === "undefined") return {};
+  try {
+    const raw = localStorage.getItem(PORTFOLIO_STATUS_STORAGE_KEY);
+    if (!raw) return {};
+    const parsed = JSON.parse(raw) as unknown;
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return {};
+    return Object.entries(parsed).reduce<Record<string, boolean>>((statuses, [id, value]) => {
+      if (typeof value === "boolean") statuses[id] = value;
+      return statuses;
+    }, {});
+  } catch {
+    return {};
+  }
+}
+
+function persistPortfolioRangeStatus(statuses: Record<string, boolean>) {
+  if (typeof window === "undefined") return;
+  try {
+    localStorage.setItem(PORTFOLIO_STATUS_STORAGE_KEY, JSON.stringify(statuses));
+  } catch {
+    // Best effort only; the in-memory ref still handles the current session.
   }
 }
 
@@ -4743,7 +4769,7 @@ function App() {
     sourceStates: {},
   }));
   const portfolioRefreshInFlightRef = useRef(false);
-  const portfolioStatusRef = useRef<Record<string, boolean | null>>({});
+  const portfolioStatusRef = useRef<Record<string, boolean>>(loadPortfolioRangeStatus());
   const portfolioScanLogBodyRef = useRef<HTMLDivElement | null>(null);
   const [showAddPosition, setShowAddPosition] = useState(false);
   const [portfolioWalletInput, setPortfolioWalletInput] = useState(
@@ -6971,9 +6997,16 @@ function App() {
     if (!settings.portfolio?.notificationsEnabled) return;
     const telegram = settings.notifications?.telegram;
     if (!telegram?.botToken || !telegram.chatId) return;
+    let didChangeStoredStatus = false;
     Object.values(portfolioMap).forEach((item) => {
-      if (item.status !== "ok" || item.hasBalance === false || typeof item.inRange !== "boolean") {
-        delete portfolioStatusRef.current[item.id];
+      if (item.status !== "ok" || typeof item.inRange !== "boolean") {
+        return;
+      }
+      if (item.hasBalance === false) {
+        if (item.id in portfolioStatusRef.current) {
+          delete portfolioStatusRef.current[item.id];
+          didChangeStoredStatus = true;
+        }
         return;
       }
       const previous = portfolioStatusRef.current[item.id];
@@ -6990,8 +7023,14 @@ function App() {
         ].join("\n");
         sendTelegramMessage(message).catch(() => undefined);
       }
-      portfolioStatusRef.current[item.id] = item.inRange;
+      if (previous !== item.inRange) {
+        portfolioStatusRef.current[item.id] = item.inRange;
+        didChangeStoredStatus = true;
+      }
     });
+    if (didChangeStoredStatus) {
+      persistPortfolioRangeStatus(portfolioStatusRef.current);
+    }
   }, [portfolioMap, sendTelegramMessage, settings.notifications?.telegram, settings.portfolio?.notificationsEnabled]);
 
   const portfolioNextUpdateText =
@@ -7172,6 +7211,7 @@ function App() {
     if (typeof window === "undefined") return;
     localStorage.removeItem(STORAGE_KEY);
     localStorage.removeItem(NOTIFICATIONS_STORAGE_KEY);
+    localStorage.removeItem(PORTFOLIO_STATUS_STORAGE_KEY);
     localStorage.removeItem(TAB_STORAGE_KEY);
     localStorage.removeItem(HOSTED_ENABLED_PAIRS_STORAGE_KEY);
     localStorage.removeItem(HOSTED_PAIR_OVERRIDES_STORAGE_KEY);
