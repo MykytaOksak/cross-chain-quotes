@@ -1726,6 +1726,8 @@ const PORTFOLIO_DISCOVERY_SOURCES: PortfolioDiscoverySource[] = [
     protocol: "Uniswap v4",
     chain: "Monad",
     rpcUrl: "https://testnet-rpc.monad.xyz",
+    debankChainIds: ["monad", "monad-testnet"],
+    debankProtocolKeywords: ["uniswap"],
     positionManagerAddress: UNIV4_DEPLOYMENTS.monad?.positionManager,
     stateViewAddress: UNIV4_DEPLOYMENTS.monad?.stateView,
     mode: "erc721",
@@ -1748,6 +1750,8 @@ const PORTFOLIO_DISCOVERY_SOURCES: PortfolioDiscoverySource[] = [
     protocol: "Uniswap v3",
     chain: "Plasma",
     rpcUrl: "https://plasma.drpc.org",
+    debankChainIds: ["plasma"],
+    debankProtocolKeywords: ["uniswap"],
     positionManagerAddress: UNIV3_PLASMA_POSITION_MANAGER,
     factoryAddress: UNIV3_PLASMA_FACTORY,
     mode: "erc721",
@@ -3578,6 +3582,11 @@ async function discoverPortfolioPositions(
         return [];
       }
       if (!shouldScanSourceWithDebank(source, debankProfile)) {
+        console.log("[PortfolioDiscovery] skipped source via DeBank", {
+          owner: normalizedOwner,
+          sourceId: source.id,
+          chainIds: source.debankChainIds,
+        });
         options?.onProgress?.({ type: "source-complete", source, owner: normalizedOwner, tokenIds: [] });
         return [];
       }
