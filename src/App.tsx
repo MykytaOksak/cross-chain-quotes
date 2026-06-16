@@ -2092,11 +2092,12 @@ function normalizePortfolioTokenSymbol(symbol: string, chain?: string): string {
 
 const RPC_MIN_GAP_MS = 60;
 const RPC_429_COOLDOWN_MS = 3_000;
-const PLASMA_RPC_MIN_GAP_MS = 350;
-const PLASMA_RPC_RATE_LIMIT_COOLDOWN_MS = 12_000;
-const PLASMA_RPC_MAX_ATTEMPTS = 6;
+const PLASMA_RPC_MIN_GAP_MS = 1_250;
+const PLASMA_RPC_RATE_LIMIT_COOLDOWN_MS = 60_000;
+const PLASMA_RPC_MAX_ATTEMPTS = 1;
 const rpcQueueByUrl = new Map<string, Promise<void>>();
 const rpcNextAllowedAtByUrl = new Map<string, number>();
+const rpcRateLimitedUntilByUrl = new Map<string, number>();
 
 function parseRetryAfterMs(retryAfter: string | null): number | null {
   if (!retryAfter) return null;
@@ -2139,13 +2140,20 @@ async function scheduleRpcSlot(rpcUrl: string): Promise<void> {
   });
   rpcQueueByUrl.set(rpcUrl, previous.then(() => current, () => current));
 
-  await previous;
-  const waitMs = Math.max(0, (rpcNextAllowedAtByUrl.get(rpcUrl) ?? 0) - Date.now());
-  if (waitMs > 0) {
-    await sleep(waitMs);
+  try {
+    await previous;
+    const rateLimitedUntil = rpcRateLimitedUntilByUrl.get(rpcUrl) ?? 0;
+    if (rateLimitedUntil > Date.now()) {
+      throw new Error(`RPC rate limited; retry after ${Math.ceil((rateLimitedUntil - Date.now()) / 1000)}s`);
+    }
+    const waitMs = Math.max(0, (rpcNextAllowedAtByUrl.get(rpcUrl) ?? 0) - Date.now());
+    if (waitMs > 0) {
+      await sleep(waitMs);
+    }
+    rpcNextAllowedAtByUrl.set(rpcUrl, Date.now() + getRpcMinGapMs(rpcUrl));
+  } finally {
+    release();
   }
-  rpcNextAllowedAtByUrl.set(rpcUrl, Date.now() + getRpcMinGapMs(rpcUrl));
-  release();
 }
 
 async function rpcCall<T = string>(
@@ -2169,13 +2177,19 @@ async function rpcCall<T = string>(
       }),
     });
     const text = await response.text();
-    if (response.status === 429 && attempt < maxAttempts - 1) {
-      const retryAfterMs =
-        parseRetryAfterMs(response.headers.get("retry-after")) ?? getRpcRateLimitCooldownMs(rpcUrl);
+    if (response.status === 429) {
+      const retryAfterMs = parseRetryAfterMs(response.headers.get("retry-after")) ?? getRpcRateLimitCooldownMs(rpcUrl);
       rpcNextAllowedAtByUrl.set(
         rpcUrl,
         Math.max(rpcNextAllowedAtByUrl.get(rpcUrl) ?? 0, Date.now() + retryAfterMs)
       );
+      rpcRateLimitedUntilByUrl.set(
+        rpcUrl,
+        Math.max(rpcRateLimitedUntilByUrl.get(rpcUrl) ?? 0, Date.now() + retryAfterMs)
+      );
+      if (attempt >= maxAttempts - 1) {
+        throw new Error(`RPC HTTP 429: rate limited; retry after ${Math.ceil(retryAfterMs / 1000)}s`);
+      }
       await sleep(retryAfterMs);
       continue;
     }
@@ -2184,12 +2198,19 @@ async function rpcCall<T = string>(
     }
     const payload = JSON.parse(text) as { result?: T; error?: { message?: string } };
     if (payload.error) {
-      if (isRpcRateLimitError(payload.error.message, (payload.error as { code?: number }).code) && attempt < maxAttempts - 1) {
+      if (isRpcRateLimitError(payload.error.message, (payload.error as { code?: number }).code)) {
         const retryAfterMs = getRpcRateLimitCooldownMs(rpcUrl) * (attempt + 1);
         rpcNextAllowedAtByUrl.set(
           rpcUrl,
           Math.max(rpcNextAllowedAtByUrl.get(rpcUrl) ?? 0, Date.now() + retryAfterMs)
         );
+        rpcRateLimitedUntilByUrl.set(
+          rpcUrl,
+          Math.max(rpcRateLimitedUntilByUrl.get(rpcUrl) ?? 0, Date.now() + retryAfterMs)
+        );
+        if (attempt >= maxAttempts - 1) {
+          throw new Error(`RPC rate limited; retry after ${Math.ceil(retryAfterMs / 1000)}s`);
+        }
         await sleep(retryAfterMs);
         continue;
       }
