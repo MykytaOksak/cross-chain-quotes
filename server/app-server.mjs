@@ -17,6 +17,9 @@ const INDEX_PATH = path.join(DIST_DIR, "index.html");
 
 const PORT = Number(process.env.APP_PORT || process.env.PORT || 4173);
 const PENDLE_API_BASE = (process.env.PENDLE_API_BASE || "http://127.0.0.1:8788").replace(/\/+$/, "");
+const DEBANK_API_BASE = (process.env.DEBANK_API_BASE || "https://pro-openapi.debank.com").replace(/\/+$/, "");
+const DEBANK_ACCESS_KEY = String(process.env.DEBANK_ACCESS_KEY || "").trim();
+const DEBANK_PROTOCOL_CACHE_MS = 60_000;
 
 const MIME_BY_EXT = {
   ".css": "text/css; charset=utf-8",
@@ -33,6 +36,7 @@ let arbSnapshotCache = null;
 let arbRefreshPromise = null;
 let arbRefreshTimer = null;
 let arbSnapshotSaveTimer = null;
+const debankProtocolCache = new Map();
 
 function sendJson(res, status, payload) {
   res.writeHead(status, {
@@ -202,6 +206,52 @@ async function proxyPendle(req, res, pathname, search) {
   res.end(responseBody);
 }
 
+function sanitizeDebankProtocol(protocol) {
+  if (!protocol || typeof protocol !== "object") return null;
+  const id = String(protocol.id ?? "").trim();
+  const chain = String(protocol.chain ?? protocol.chain_id ?? "").trim();
+  const name = String(protocol.name ?? "").trim();
+  if (!chain) return null;
+  return { id, chain, name };
+}
+
+async function fetchDebankProtocols(wallet) {
+  if (!DEBANK_ACCESS_KEY) {
+    return { available: false, protocols: [], reason: "DEBANK_ACCESS_KEY is not configured" };
+  }
+  const normalizedWallet = String(wallet || "").trim().toLowerCase();
+  if (!/^0x[a-f0-9]{40}$/.test(normalizedWallet)) {
+    return { available: false, protocols: [], reason: "Wallet is not an EVM address" };
+  }
+  const cached = debankProtocolCache.get(normalizedWallet);
+  if (cached && cached.expiresAt > Date.now()) {
+    return cached.value;
+  }
+  const response = await fetch(
+    `${DEBANK_API_BASE}/v1/user/all_complex_protocol_list?id=${encodeURIComponent(normalizedWallet)}`,
+    {
+      headers: {
+        AccessKey: DEBANK_ACCESS_KEY,
+        accept: "application/json",
+      },
+    }
+  );
+  const text = await response.text();
+  if (!response.ok) {
+    throw new Error(`DeBank HTTP ${response.status}: ${text.slice(0, 160)}`);
+  }
+  const raw = JSON.parse(text);
+  const protocols = (Array.isArray(raw) ? raw : [])
+    .map(sanitizeDebankProtocol)
+    .filter(Boolean);
+  const value = { available: true, protocols };
+  debankProtocolCache.set(normalizedWallet, {
+    value,
+    expiresAt: Date.now() + DEBANK_PROTOCOL_CACHE_MS,
+  });
+  return value;
+}
+
 async function serveFile(res, filePath) {
   const fileStat = await stat(filePath);
   const ext = path.extname(filePath).toLowerCase();
@@ -264,6 +314,13 @@ const server = http.createServer(async (req, res) => {
         ...payload,
         refreshing: Boolean(arbRefreshPromise),
       });
+      return;
+    }
+
+    if (req.method === "GET" && url.pathname === "/api/shared/debank-protocols") {
+      const wallet = String(url.searchParams.get("wallet") || "").trim();
+      const payload = await fetchDebankProtocols(wallet);
+      sendJson(res, 200, { ok: true, ...payload });
       return;
     }
 

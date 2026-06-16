@@ -24,6 +24,7 @@ export function sanitizeHostedConfig(config) {
       walletAddress: "",
       walletTag: "",
       wallets: [],
+      debankDiscovery: { enabled: false },
       ignoredEmptyPositionIds: [],
       positions: [],
     },

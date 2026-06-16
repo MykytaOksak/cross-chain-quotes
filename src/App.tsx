@@ -124,6 +124,9 @@ type PortfolioConfig = {
   walletAddress?: string;
   walletTag?: string;
   wallets?: PortfolioWalletConfig[];
+  debankDiscovery?: {
+    enabled?: boolean;
+  };
   ignoredEmptyPositionIds?: string[];
   positions: PortfolioPositionConfig[];
 };
@@ -329,6 +332,8 @@ type PortfolioDiscoverySource = {
   protocol: string;
   chain: string;
   rpcUrl: string;
+  debankChainIds?: string[];
+  debankProtocolKeywords?: string[];
   positionManagerAddress?: string;
   factoryAddress?: string;
   stateViewAddress?: string;
@@ -347,6 +352,17 @@ type PortfolioDiscoveryProgressEvent = {
   owner: string;
   tokenIds?: string[];
   error?: string;
+};
+
+type DebankProtocolSummary = {
+  id: string;
+  chain: string;
+  name: string;
+};
+
+type DebankDiscoveryProfile = {
+  available: boolean;
+  protocols: DebankProtocolSummary[];
 };
 
 type YuzuTokenMeta = {
@@ -431,6 +447,7 @@ const HOSTED_USER_ID_STORAGE_KEY = "cca.hosted.userId.v1";
 const HOSTED_PRICE_ALERTS_STORAGE_KEY = "cca.hosted.priceAlerts.v1";
 const HOSTED_DEFAULT_ENABLED_PAIR_IDS = ["usde-usdc"];
 const DEFAULT_PRICE_ALERT_COOLDOWN_MS = 15 * 60 * 1000;
+const DEBANK_DISCOVERY_ENDPOINT = "/api/shared/debank-protocols";
 type HostedPairOverride = {
   amount?: string;
   networks?: Record<string, boolean>;
@@ -989,6 +1006,7 @@ function normalizeSettings(partial: Partial<Settings>): Settings {
     walletAddress: getDefaultPortfolioWallet().address,
     walletTag: getDefaultPortfolioWallet().tag,
     wallets: [getDefaultPortfolioWallet()],
+    debankDiscovery: { enabled: true },
     ignoredEmptyPositionIds: [],
     positions: [],
   };
@@ -1083,6 +1101,9 @@ function normalizeSettings(partial: Partial<Settings>): Settings {
         ? savedPortfolio.walletTag
         : portfolioWallets[0]?.tag ?? basePortfolio.walletTag ?? "",
     wallets: portfolioWallets,
+    debankDiscovery: {
+      enabled: savedPortfolio.debankDiscovery?.enabled ?? basePortfolio.debankDiscovery?.enabled ?? true,
+    },
     ignoredEmptyPositionIds,
     positions: mergedPortfolioPositions,
   };
@@ -1091,6 +1112,7 @@ function normalizeSettings(partial: Partial<Settings>): Settings {
     portfolio.walletAddress = "";
     portfolio.walletTag = "";
     portfolio.wallets = [];
+    portfolio.debankDiscovery = { enabled: false };
     portfolio.ignoredEmptyPositionIds = [];
     portfolio.positions = [];
   }
@@ -1692,6 +1714,8 @@ const PORTFOLIO_DISCOVERY_SOURCES: PortfolioDiscoverySource[] = [
     protocol: "Uniswap v3",
     chain: "Ethereum",
     rpcUrl: "https://ethereum-rpc.publicnode.com",
+    debankChainIds: ["eth"],
+    debankProtocolKeywords: ["uniswap"],
     positionManagerAddress: UNIV3_POSITION_MANAGER,
     factoryAddress: UNIV3_FACTORY,
     mode: "erc721",
@@ -1712,6 +1736,8 @@ const PORTFOLIO_DISCOVERY_SOURCES: PortfolioDiscoverySource[] = [
     protocol: "Uniswap v4",
     chain: "Ethereum",
     rpcUrl: "https://ethereum-rpc.publicnode.com",
+    debankChainIds: ["eth"],
+    debankProtocolKeywords: ["uniswap"],
     positionManagerAddress: UNIV4_DEPLOYMENTS.ethereum?.positionManager,
     stateViewAddress: UNIV4_DEPLOYMENTS.ethereum?.stateView,
     mode: "erc721",
@@ -1742,6 +1768,8 @@ const PORTFOLIO_DISCOVERY_SOURCES: PortfolioDiscoverySource[] = [
     protocol: "Aerodrome v3",
     chain: "Base",
     rpcUrl: "https://base-rpc.publicnode.com",
+    debankChainIds: ["base"],
+    debankProtocolKeywords: ["aerodrome"],
     positionManagerAddress: AERODROME_V3_BASE_POSITION_MANAGER,
     factoryAddress: AERODROME_V3_BASE_FACTORY,
     sugarAddress: AERODROME_LP_SUGAR_BASE,
@@ -1755,6 +1783,8 @@ const PORTFOLIO_DISCOVERY_SOURCES: PortfolioDiscoverySource[] = [
     protocol: "Velodrome v3",
     chain: "Optimism",
     rpcUrl: "https://optimism-rpc.publicnode.com",
+    debankChainIds: ["op"],
+    debankProtocolKeywords: ["velodrome"],
     positionManagerAddress: VELODROME_V3_OPTIMISM_POSITION_MANAGER,
     factoryAddress: VELODROME_V3_OPTIMISM_FACTORY,
     sugarAddress: VELODROME_LP_SUGAR_OPTIMISM,
@@ -3471,17 +3501,63 @@ function toDiscoveredPortfolioPosition(
   };
 }
 
+async function fetchDebankDiscoveryProfile(owner: string): Promise<DebankDiscoveryProfile> {
+  if (!/^0x[a-fA-F0-9]{40}$/.test(owner)) {
+    return { available: false, protocols: [] };
+  }
+  try {
+    const response = await fetch(`${DEBANK_DISCOVERY_ENDPOINT}?wallet=${encodeURIComponent(owner)}`);
+    const payload = (await response.json().catch(() => null)) as
+      | { ok?: boolean; available?: boolean; protocols?: DebankProtocolSummary[] }
+      | null;
+    if (!response.ok || !payload?.ok || !payload.available || !Array.isArray(payload.protocols)) {
+      return { available: false, protocols: [] };
+    }
+    return {
+      available: true,
+      protocols: payload.protocols
+        .map((protocol) => ({
+          id: String(protocol.id ?? "").toLowerCase(),
+          chain: String(protocol.chain ?? "").toLowerCase(),
+          name: String(protocol.name ?? "").toLowerCase(),
+        }))
+        .filter((protocol) => protocol.chain),
+    };
+  } catch {
+    return { available: false, protocols: [] };
+  }
+}
+
+function shouldScanSourceWithDebank(source: PortfolioDiscoverySource, profile: DebankDiscoveryProfile | null): boolean {
+  if (!profile?.available) return true;
+  if (!source.debankChainIds || source.debankChainIds.length === 0) return true;
+  const sourceChains = new Set(source.debankChainIds.map((chain) => chain.toLowerCase()));
+  const chainProtocols = profile.protocols.filter((protocol) => sourceChains.has(protocol.chain));
+  if (chainProtocols.length === 0) return false;
+  const keywords = (source.debankProtocolKeywords ?? []).map((keyword) => keyword.toLowerCase()).filter(Boolean);
+  if (keywords.length === 0) return true;
+  return chainProtocols.some((protocol) => {
+    const haystack = `${protocol.id} ${protocol.name}`;
+    return keywords.some((keyword) => haystack.includes(keyword));
+  });
+}
+
 async function discoverPortfolioPositions(
   owner: string,
   options?: {
     explorerApiKey?: string;
+    debankDiscoveryEnabled?: boolean;
     onProgress?: (event: PortfolioDiscoveryProgressEvent) => void;
   }
 ): Promise<PortfolioPositionConfig[]> {
   const normalizedOwner = normalizePortfolioWalletAddress(owner);
+  const debankProfile = options?.debankDiscoveryEnabled
+    ? await fetchDebankDiscoveryProfile(normalizedOwner)
+    : null;
   console.log("[PortfolioDiscovery] start", {
     owner: normalizedOwner,
     sourceCount: PORTFOLIO_DISCOVERY_SOURCES.length,
+    debankAvailable: Boolean(debankProfile?.available),
   });
   const discoveredGroups = await Promise.all(
     PORTFOLIO_DISCOVERY_SOURCES.map(async (source) => {
@@ -3498,6 +3574,10 @@ async function discoverPortfolioPositions(
         return [];
       }
       if (isMovementAccount && source.mode !== "yuzu") {
+        options?.onProgress?.({ type: "source-complete", source, owner: normalizedOwner, tokenIds: [] });
+        return [];
+      }
+      if (!shouldScanSourceWithDebank(source, debankProfile)) {
         options?.onProgress?.({ type: "source-complete", source, owner: normalizedOwner, tokenIds: [] });
         return [];
       }
@@ -6564,6 +6644,7 @@ function App() {
             walletAddress: prev.portfolio?.walletAddress ?? "",
             walletTag: prev.portfolio?.walletTag ?? "",
             wallets: prev.portfolio?.wallets ?? [getDefaultPortfolioWallet()],
+            debankDiscovery: prev.portfolio?.debankDiscovery ?? { enabled: true },
             ignoredEmptyPositionIds: Array.from(
               new Set([...(prev.portfolio?.ignoredEmptyPositionIds ?? []), ...Array.from(emptyPositionIds)])
             ),
@@ -6692,6 +6773,7 @@ function App() {
         }> = [];
         for (const wallet of normalizedWallets) {
           const positions = await discoverPortfolioPositions(wallet.address, {
+            debankDiscoveryEnabled: settings.portfolio?.debankDiscovery?.enabled ?? true,
             onProgress: (event) => {
               const sourceKey = `${event.owner}:${event.source.id}`;
               setPortfolioScanStatus((prev) => {
@@ -6803,6 +6885,7 @@ function App() {
               walletAddress: normalizedWallets[0]?.address ?? prev.portfolio?.walletAddress ?? "",
               walletTag: normalizedWallets[0]?.tag ?? prev.portfolio?.walletTag ?? "",
               wallets: Array.from(mergedWallets.values()),
+              debankDiscovery: prev.portfolio?.debankDiscovery ?? { enabled: true },
               ignoredEmptyPositionIds: prev.portfolio?.ignoredEmptyPositionIds ?? [],
               positions: [
                 ...(prev.portfolio?.positions ?? []).filter((item) => {
@@ -6969,6 +7052,7 @@ function App() {
           walletAddress: fallbackWallet?.address ?? "",
           walletTag: fallbackWallet?.tag ?? "",
           wallets: nextWallets,
+          debankDiscovery: settings.portfolio?.debankDiscovery ?? { enabled: true },
           ignoredEmptyPositionIds: settings.portfolio?.ignoredEmptyPositionIds ?? [],
           positions: portfolioPositions.filter((item) => {
             try {
@@ -7458,6 +7542,7 @@ function App() {
                                 walletAddress: settings.portfolio?.walletAddress ?? "",
                                 walletTag: settings.portfolio?.walletTag ?? "",
                                 wallets: settings.portfolio?.wallets ?? [getDefaultPortfolioWallet()],
+                                debankDiscovery: settings.portfolio?.debankDiscovery ?? { enabled: true },
                                 ignoredEmptyPositionIds: settings.portfolio?.ignoredEmptyPositionIds ?? [],
                                 positions: portfolioPositions,
                               },
@@ -8474,6 +8559,7 @@ function App() {
                               walletAddress: settings.portfolio?.walletAddress ?? "",
                               walletTag: settings.portfolio?.walletTag ?? "",
                               wallets: settings.portfolio?.wallets ?? [getDefaultPortfolioWallet()],
+                              debankDiscovery: settings.portfolio?.debankDiscovery ?? { enabled: true },
                               ignoredEmptyPositionIds: settings.portfolio?.ignoredEmptyPositionIds ?? [],
                               positions: portfolioPositions.filter((item) => item.id !== position.id),
                             },

@@ -1249,6 +1249,9 @@
         "tag": "init...zy9"
       }
     ],
+    "debankDiscovery": {
+      "enabled": true
+    },
     "positions": []
   },
   "quoteApi": {
