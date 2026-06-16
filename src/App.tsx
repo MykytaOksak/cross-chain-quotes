@@ -2301,11 +2301,15 @@ async function ethCallHex(rpcUrl: string, to: string, data: string): Promise<str
 type RpcLog = {
   topics?: string[];
   data?: string;
+  blockNumber?: string;
+  transactionIndex?: string;
+  logIndex?: string;
 };
 
 const MAX_LOG_BLOCK_RANGE = 50000n;
 const POSITION_DISCOVERY_LOOKBACK_MS = 180 * 24 * 60 * 60 * 1000;
 const POSITION_DISCOVERY_CACHE_MS = 5 * 60 * 1000;
+const ERC721_OWNERSHIP_INDEX_STORAGE_KEY = "cca.portfolio.erc721OwnershipIndex.v1";
 const BLOCKSCOUT_MAX_PAGES = 20;
 const AERODROME_DEBUG_PREFIX = "[AerodromeDiscovery]";
 const UNIV4_ETH_DEBUG_PREFIX = "[UniswapV4EthereumDiscovery]";
@@ -2316,6 +2320,153 @@ const receivedErc721TokenIdsCache = new Map<string, { value: string[]; expiresAt
 const receivedErc721TokenIdsExplorerCache = new Map<string, { value: string[]; expiresAt: number }>();
 const ownerOfCache = new Map<string, { value: string; expiresAt: number }>();
 const gaugeByPoolCache = new Map<string, { value: string; expiresAt: number }>();
+
+type Erc721OwnershipIndexEntry = {
+  tokenIds: string[];
+  lastScannedBlock: string;
+  updatedAt: number;
+};
+
+type Erc721OwnershipIndex = Record<string, Erc721OwnershipIndexEntry>;
+
+type Erc721TransferEvent = {
+  tokenId: string;
+  from: string;
+  to: string;
+  blockNumber: bigint;
+  transactionIndex: number;
+  logIndex: number;
+};
+
+function normalizeTokenIdList(tokenIds: Iterable<string>): string[] {
+  return Array.from(new Set(Array.from(tokenIds).map((tokenId) => String(tokenId).trim()).filter(Boolean))).sort(
+    (left, right) => {
+      try {
+        const leftId = BigInt(left);
+        const rightId = BigInt(right);
+        if (leftId === rightId) return 0;
+        return leftId < rightId ? -1 : 1;
+      } catch {
+        return left.localeCompare(right);
+      }
+    }
+  );
+}
+
+function getErc721OwnershipIndexKey(source: PortfolioDiscoverySource, contractAddress: string, owner: string): string {
+  return [source.id, source.chain, contractAddress.toLowerCase(), owner.toLowerCase()].join("|");
+}
+
+function loadErc721OwnershipIndex(): Erc721OwnershipIndex {
+  if (typeof localStorage === "undefined") return {};
+  try {
+    const raw = localStorage.getItem(ERC721_OWNERSHIP_INDEX_STORAGE_KEY);
+    const parsed = raw ? JSON.parse(raw) : {};
+    return parsed && typeof parsed === "object" && !Array.isArray(parsed) ? parsed as Erc721OwnershipIndex : {};
+  } catch {
+    return {};
+  }
+}
+
+function saveErc721OwnershipIndex(index: Erc721OwnershipIndex): void {
+  if (typeof localStorage === "undefined") return;
+  try {
+    const entries = Object.entries(index)
+      .sort((left, right) => (right[1].updatedAt ?? 0) - (left[1].updatedAt ?? 0))
+      .slice(0, 80);
+    localStorage.setItem(ERC721_OWNERSHIP_INDEX_STORAGE_KEY, JSON.stringify(Object.fromEntries(entries)));
+  } catch {
+    // Best-effort cache only.
+  }
+}
+
+function parseLogNumeric(value: string | undefined): bigint {
+  if (!value) return 0n;
+  try {
+    return BigInt(value);
+  } catch {
+    return 0n;
+  }
+}
+
+function parseLogIndex(value: string | undefined): number {
+  const parsed = Number(parseLogNumeric(value));
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function parseTransferEvent(log: RpcLog): Erc721TransferEvent | null {
+  const topics = log.topics ?? [];
+  if (topics.length < 4) return null;
+  try {
+    const tokenId = wordToBigInt(stripHexPrefix(topics[3] ?? "")).toString();
+    return {
+      tokenId,
+      from: getAddress(wordToAddress(stripHexPrefix(topics[1] ?? "").padStart(64, "0"))),
+      to: getAddress(wordToAddress(stripHexPrefix(topics[2] ?? "").padStart(64, "0"))),
+      blockNumber: parseLogNumeric(log.blockNumber),
+      transactionIndex: parseLogIndex(log.transactionIndex),
+      logIndex: parseLogIndex(log.logIndex),
+    };
+  } catch {
+    return null;
+  }
+}
+
+async function fetchErc721TransferEventsForOwner(
+  rpcUrl: string,
+  contractAddress: string,
+  owner: string,
+  fromBlock: bigint,
+  toBlock: bigint
+): Promise<Erc721TransferEvent[]> {
+  if (fromBlock > toBlock) return [];
+  const ownerTopic = encodeTopicAddress(owner).toLowerCase();
+  const fromBlockHex = `0x${fromBlock.toString(16)}`;
+  const toBlockHex = `0x${toBlock.toString(16)}`;
+  const [receivedLogs, sentLogs] = await Promise.all([
+    ethGetLogsChunked(rpcUrl, {
+      address: contractAddress,
+      fromBlock: fromBlockHex,
+      toBlock: toBlockHex,
+      topics: [TRANSFER_TOPIC, null, ownerTopic],
+    }),
+    ethGetLogsChunked(rpcUrl, {
+      address: contractAddress,
+      fromBlock: fromBlockHex,
+      toBlock: toBlockHex,
+      topics: [TRANSFER_TOPIC, ownerTopic],
+    }),
+  ]);
+  const eventByKey = new Map<string, Erc721TransferEvent>();
+  [...receivedLogs, ...sentLogs].forEach((log) => {
+    const event = parseTransferEvent(log);
+    if (!event) return;
+    const key = `${event.blockNumber.toString()}:${event.transactionIndex}:${event.logIndex}:${event.tokenId}`;
+    eventByKey.set(key, event);
+  });
+  return Array.from(eventByKey.values()).sort((left, right) => {
+    if (left.blockNumber !== right.blockNumber) return left.blockNumber < right.blockNumber ? -1 : 1;
+    if (left.transactionIndex !== right.transactionIndex) return left.transactionIndex - right.transactionIndex;
+    return left.logIndex - right.logIndex;
+  });
+}
+
+function applyErc721TransferEvents(
+  tokenIds: Iterable<string>,
+  owner: string,
+  events: Erc721TransferEvent[]
+): string[] {
+  const normalizedOwner = owner.toLowerCase();
+  const owned = new Set(tokenIds);
+  events.forEach((event) => {
+    const fromOwner = event.from.toLowerCase() === normalizedOwner;
+    const toOwner = event.to.toLowerCase() === normalizedOwner;
+    if (fromOwner && toOwner) return;
+    if (fromOwner) owned.delete(event.tokenId);
+    if (toOwner) owned.add(event.tokenId);
+  });
+  return normalizeTokenIdList(owned);
+}
 
 async function ethGetLogs(
   rpcUrl: string,
@@ -2942,6 +3093,118 @@ async function fetchReceivedErc721TokenIdsViaBlockscout(
     expiresAt: Date.now() + POSITION_DISCOVERY_CACHE_MS,
   });
   return value;
+}
+
+async function fetchIndexedOwnedErc721TokenIds(
+  source: PortfolioDiscoverySource,
+  owner: string,
+  apiKey?: string
+): Promise<string[] | null> {
+  if (!source.positionManagerAddress) return null;
+  const normalizedOwner = getAddress(owner);
+  const contractAddress = getAddress(source.positionManagerAddress);
+  const cacheKey = getErc721OwnershipIndexKey(source, contractAddress, normalizedOwner);
+  const index = loadErc721OwnershipIndex();
+  const cached = index[cacheKey];
+  const latestBlock = await ethBlockNumber(source.rpcUrl);
+
+  if (cached?.lastScannedBlock) {
+    const cachedTokenIds = normalizeTokenIdList(cached.tokenIds ?? []);
+    const lastScannedBlock = parseLogNumeric(cached.lastScannedBlock);
+    if (latestBlock <= lastScannedBlock) {
+      return cachedTokenIds;
+    }
+    try {
+      const events = await fetchErc721TransferEventsForOwner(
+        source.rpcUrl,
+        contractAddress,
+        normalizedOwner,
+        lastScannedBlock + 1n,
+        latestBlock
+      );
+      const nextTokenIds = applyErc721TransferEvents(cachedTokenIds, normalizedOwner, events);
+      index[cacheKey] = {
+        tokenIds: nextTokenIds,
+        lastScannedBlock: `0x${latestBlock.toString(16)}`,
+        updatedAt: Date.now(),
+      };
+      saveErc721OwnershipIndex(index);
+      console.log("[PortfolioDiscovery] updated ERC721 ownership index", {
+        sourceId: source.id,
+        owner: normalizedOwner,
+        fromBlock: `0x${(lastScannedBlock + 1n).toString(16)}`,
+        toBlock: `0x${latestBlock.toString(16)}`,
+        transferCount: events.length,
+        tokenIds: nextTokenIds,
+      });
+      return nextTokenIds;
+    } catch (error) {
+      console.log("[PortfolioDiscovery] ERC721 ownership index update failed", {
+        sourceId: source.id,
+        owner: normalizedOwner,
+        error: error instanceof Error ? error.message : String(error),
+      });
+      return cachedTokenIds.length > 0 ? cachedTokenIds : null;
+    }
+  }
+
+  const seededTokenIds = new Set<string>();
+  try {
+    const explorerTokenIds = await fetchReceivedErc721TokenIdsViaBlockscout(
+      source,
+      contractAddress,
+      normalizedOwner,
+      apiKey
+    );
+    if (explorerTokenIds) {
+      const verifiedExplorerTokenIds = await Promise.all(
+        explorerTokenIds.map(async (tokenId) => {
+          try {
+            const currentOwner = await fetchErc721OwnerOf(source.rpcUrl, contractAddress, tokenId);
+            return currentOwner.toLowerCase() === normalizedOwner.toLowerCase() ? tokenId : null;
+          } catch {
+            return null;
+          }
+        })
+      );
+      verifiedExplorerTokenIds.forEach((tokenId) => {
+        if (tokenId) seededTokenIds.add(tokenId);
+      });
+    }
+  } catch (error) {
+    console.log("[PortfolioDiscovery] explorer ERC721 candidate discovery failed", {
+      sourceId: source.id,
+      owner: normalizedOwner,
+      error: error instanceof Error ? error.message : String(error),
+    });
+  }
+
+  try {
+    const currentTokenIds = await fetchOwnedErc721TokenIds(source.rpcUrl, contractAddress, normalizedOwner);
+    currentTokenIds.forEach((tokenId) => seededTokenIds.add(tokenId));
+  } catch (error) {
+    console.log("[PortfolioDiscovery] on-chain ERC721 seed discovery failed", {
+      sourceId: source.id,
+      owner: normalizedOwner,
+      error: error instanceof Error ? error.message : String(error),
+    });
+  }
+
+  const tokenIds = normalizeTokenIdList(seededTokenIds);
+  if (tokenIds.length === 0) return null;
+  index[cacheKey] = {
+    tokenIds,
+    lastScannedBlock: `0x${latestBlock.toString(16)}`,
+    updatedAt: Date.now(),
+  };
+  saveErc721OwnershipIndex(index);
+  console.log("[PortfolioDiscovery] seeded ERC721 ownership index", {
+    sourceId: source.id,
+    owner: normalizedOwner,
+    tokenIds,
+    lastScannedBlock: `0x${latestBlock.toString(16)}`,
+  });
+  return tokenIds;
 }
 
 async function fetchErc721OwnerOf(
@@ -3629,9 +3892,18 @@ async function discoverPortfolioPositions(
           });
         }
       } else if (source.positionManagerAddress) {
-        (await fetchOwnedErc721TokenIds(source.rpcUrl, source.positionManagerAddress, normalizedOwner)).forEach(
-          (tokenId) => tokenIdSet.add(tokenId)
+        const indexedTokenIds = await fetchIndexedOwnedErc721TokenIds(
+          source,
+          normalizedOwner,
+          options?.explorerApiKey
         );
+        if (indexedTokenIds) {
+          indexedTokenIds.forEach((tokenId) => tokenIdSet.add(tokenId));
+        } else {
+          (await fetchOwnedErc721TokenIds(source.rpcUrl, source.positionManagerAddress, normalizedOwner)).forEach(
+            (tokenId) => tokenIdSet.add(tokenId)
+          );
+        }
         if (/uniswap\s*v4/i.test(source.protocol)) {
           (
             await fetchOwnedErc721TokenIdsViaReceivedLogs(
