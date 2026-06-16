@@ -4769,6 +4769,7 @@ function App() {
     sourceStates: {},
   }));
   const portfolioRefreshInFlightRef = useRef(false);
+  const portfolioPendingRefreshPositionsRef = useRef<PortfolioPositionConfig[] | null>(null);
   const portfolioStatusRef = useRef<Record<string, boolean>>(loadPortfolioRangeStatus());
   const portfolioScanLogBodyRef = useRef<HTMLDivElement | null>(null);
   const [showAddPosition, setShowAddPosition] = useState(false);
@@ -6495,7 +6496,11 @@ function App() {
       }));
       return;
     }
-    if (portfolioRefreshInFlightRef.current) return;
+    if (portfolioRefreshInFlightRef.current) {
+      portfolioPendingRefreshPositionsRef.current = positions;
+      return;
+    }
+    portfolioPendingRefreshPositionsRef.current = null;
     portfolioRefreshInFlightRef.current = true;
     setIsPortfolioRefreshing(true);
     setPortfolioScanStatus((prev) => ({
@@ -6604,6 +6609,13 @@ function App() {
     } finally {
       setIsPortfolioRefreshing(false);
       portfolioRefreshInFlightRef.current = false;
+      const pendingPositions = portfolioPendingRefreshPositionsRef.current;
+      portfolioPendingRefreshPositionsRef.current = null;
+      if (pendingPositions) {
+        window.setTimeout(() => {
+          refreshPortfolioPositions(pendingPositions).catch(() => undefined);
+        }, 0);
+      }
     }
   }, []);
 
