@@ -1221,7 +1221,7 @@
     ],
     "rpcByChainId": {
       "1": "https://eth.llamarpc.com",
-      "8453": "https://base.llamarpc.com",
+      "8453": "https://base.api.pocket.network",
       "42161": "https://arbitrum-one-rpc.publicnode.com"
     },
     "limitOrderContractByChainId": {

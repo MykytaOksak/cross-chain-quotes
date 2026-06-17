@@ -1771,7 +1771,7 @@ const PORTFOLIO_DISCOVERY_SOURCES: PortfolioDiscoverySource[] = [
     label: "Aerodrome Slipstream on Base",
     protocol: "Aerodrome v3",
     chain: "Base",
-    rpcUrl: "https://base-rpc.publicnode.com",
+    rpcUrl: "https://base.api.pocket.network",
     debankChainIds: ["base"],
     debankProtocolKeywords: ["aerodrome"],
     positionManagerAddress: AERODROME_V3_BASE_POSITION_MANAGER,
