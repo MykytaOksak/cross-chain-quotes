@@ -941,12 +941,12 @@ function wordToBigInt(word) {
   return BigInt(`0x${word || "0"}`);
 }
 
-function isUsdnrSusdnrPair(pair) {
-  return pair.baseTokenId === "usdnr" && pair.quoteTokenId === "susdnr";
+function isSusdnrUsdnrPair(pair) {
+  return pair.baseTokenId === "susdnr" && pair.quoteTokenId === "usdnr";
 }
 
 function getNativeRouteLabel(pair, network) {
-  if (network.chain === "fluent" && isUsdnrSusdnrPair(pair)) return "Stake/Unstake";
+  if (network.chain === "fluent" && isSusdnrUsdnrPair(pair)) return "Stake/Unstake";
   return "Mint/Redeem";
 }
 
@@ -1257,18 +1257,30 @@ async function fetchNeronaStakeUnstakeQuote(settings, network, pair, baseVariant
   if (network.chain !== "fluent") {
     throw new Error("Nerona stake/unstake route is only supported on Fluent");
   }
-  if (!isUsdnrSusdnrPair(pair)) {
-    throw new Error("Nerona stake/unstake route requires USDnr/sUSDnr");
+  if (!isSusdnrUsdnrPair(pair)) {
+    throw new Error("Nerona stake/unstake route requires sUSDnr/USDnr");
   }
 
   const rpcUrl = settings.quoteApi?.nerona?.rpcUrl?.trim() || FLUENT_PUBLIC_RPC;
   const quoteAmountAtomic = BigInt(toAtomicAmount(amount, quoteVariant.decimals));
   if (quoteAmountAtomic <= 0n) {
-    throw new Error("Invalid amount for Nerona unstake quote");
+    throw new Error("Invalid amount for Nerona stake quote");
+  }
+
+  const previewDepositData =
+    `${SELECTOR_NERONA_PREVIEW_DEPOSIT}${encodeAddressArg(quoteVariant.address)}${encodeUintArg(quoteAmountAtomic)}`;
+  const depositRaw = await rpcCall(
+    rpcUrl,
+    "eth_call",
+    [{ to: NERONA_SUSDNR_VAULT_ADDRESS, data: previewDepositData }, "latest"]
+  );
+  const stakedSUsdNrAtomic = wordToBigInt(parseWord(depositRaw, 0));
+  if (stakedSUsdNrAtomic <= 0n) {
+    throw new Error("Invalid Nerona stake output amount");
   }
 
   const previewRedemptionData =
-    `${SELECTOR_NERONA_PREVIEW_REDEMPTION}${encodeUintArg(quoteAmountAtomic)}${encodeUintArg(1n)}`;
+    `${SELECTOR_NERONA_PREVIEW_REDEMPTION}${encodeUintArg(stakedSUsdNrAtomic)}${encodeUintArg(1n)}`;
   const redemptionRaw = await rpcCall(
     rpcUrl,
     "eth_call",
@@ -1280,23 +1292,11 @@ async function fetchNeronaStakeUnstakeQuote(settings, network, pair, baseVariant
     throw new Error("Invalid Nerona unstake output amount");
   }
 
-  const previewDepositData =
-    `${SELECTOR_NERONA_PREVIEW_DEPOSIT}${encodeAddressArg(baseVariant.address)}${encodeUintArg(unstakeUsdNrAtomic)}`;
-  const depositRaw = await rpcCall(
-    rpcUrl,
-    "eth_call",
-    [{ to: NERONA_SUSDNR_VAULT_ADDRESS, data: previewDepositData }, "latest"]
-  );
-  const stakedSUsdNrAtomic = wordToBigInt(parseWord(depositRaw, 0));
-  if (stakedSUsdNrAtomic <= 0n) {
-    throw new Error("Invalid Nerona stake output amount");
-  }
-
-  const unstakeReceiveAmount = fromAtomicAmount(unstakeUsdNrAtomic.toString(), baseVariant.decimals);
-  const stakeReceiveAmount = fromAtomicAmount(stakedSUsdNrAtomic.toString(), quoteVariant.decimals);
+  const stakeReceiveAmount = fromAtomicAmount(stakedSUsdNrAtomic.toString(), baseVariant.decimals);
+  const unstakeReceiveAmount = fromAtomicAmount(unstakeUsdNrAtomic.toString(), quoteVariant.decimals);
   const buyFrom = Number(amount);
-  const buyReceive = Number(unstakeReceiveAmount);
-  const sellReceive = Number(stakeReceiveAmount);
+  const buyReceive = Number(stakeReceiveAmount);
+  const sellReceive = Number(unstakeReceiveAmount);
   const buyPrice = buyReceive > 0 ? buyFrom / buyReceive : Number.NaN;
   const sellPrice = buyReceive > 0 ? sellReceive / buyReceive : Number.NaN;
   const roundTripPct =
@@ -1313,12 +1313,27 @@ async function fetchNeronaStakeUnstakeQuote(settings, network, pair, baseVariant
     quoteVariant,
     buy: {
       fromAmount: amount,
-      receiveAmount: unstakeReceiveAmount,
+      receiveAmount: stakeReceiveAmount,
       price: Number.isFinite(buyPrice) ? buyPrice.toFixed(6) : "—",
       fromSymbol: quoteSymbol,
       receiveSymbol: baseSymbol,
       fromVariantLabel: quoteVariant.label,
       receiveVariantLabel: baseVariant.label,
+      market: "Nerona stake",
+      raw: {
+        source: "nerona",
+        vault: NERONA_SUSDNR_VAULT_ADDRESS,
+        stakedSUsdNrAtomic: stakedSUsdNrAtomic.toString(),
+      },
+    },
+    sell: {
+      fromAmount: stakeReceiveAmount,
+      receiveAmount: unstakeReceiveAmount,
+      price: Number.isFinite(sellPrice) ? sellPrice.toFixed(6) : "—",
+      fromSymbol: baseSymbol,
+      receiveSymbol: quoteSymbol,
+      fromVariantLabel: baseVariant.label,
+      receiveVariantLabel: quoteVariant.label,
       market: "Nerona unstake",
       raw: {
         source: "nerona",
@@ -1326,21 +1341,6 @@ async function fetchNeronaStakeUnstakeQuote(settings, network, pair, baseVariant
         grossUnstakeUsdNrAtomic: grossUnstakeUsdNrAtomic.toString(),
         unstakeUsdNrAtomic: unstakeUsdNrAtomic.toString(),
         instant: true,
-      },
-    },
-    sell: {
-      fromAmount: unstakeReceiveAmount,
-      receiveAmount: stakeReceiveAmount,
-      price: Number.isFinite(sellPrice) ? sellPrice.toFixed(6) : "—",
-      fromSymbol: baseSymbol,
-      receiveSymbol: quoteSymbol,
-      fromVariantLabel: baseVariant.label,
-      receiveVariantLabel: quoteVariant.label,
-      market: "Nerona stake",
-      raw: {
-        source: "nerona",
-        vault: NERONA_SUSDNR_VAULT_ADDRESS,
-        stakedSUsdNrAtomic: stakedSUsdNrAtomic.toString(),
       },
     },
     roundTripPct,
@@ -1365,7 +1365,7 @@ async function fetchMintRedeemQuote(settings, network, pair, baseVariant, quoteV
       amount
     );
   }
-  if (isUsdnrSusdnrPair(pair)) {
+  if (isSusdnrUsdnrPair(pair)) {
     return fetchNeronaStakeUnstakeQuote(
       settings,
       network,
@@ -1470,7 +1470,7 @@ async function fetchQuoteForVariant(settings, network, pair, baseVariant, quoteV
       );
       buyRaw = { source: buyBest.name, amountIn: buyRequestAmountHuman, outAmount: buyBest.outAmount, ...buyBest.raw };
       sellRaw = { source: sellBest.name, amountIn: buyBest.outAmount, outAmount: sellBest.outAmount, ...sellBest.raw };
-    } else if (network.chain === "fluent" && pair.id === "usdnr-susdnr") {
+    } else if (network.chain === "fluent" && pair.id === "susdnr-usdnr") {
       buyBest = await fetchFluxFlowQuote(
         quoteVariant.address,
         baseVariant.address,
@@ -1987,7 +1987,7 @@ function prepareArbSnapshotState(settings, previousQuoteMap = null) {
           includeMintRedeem:
             ((net.chain === "ethereum" && pair.baseTokenId === "reusd" && pair.quoteTokenId === "usdc") ||
               (net.chain === "avalanche" && pair.baseTokenId === "savusd" && pair.quoteTokenId === "usdc") ||
-              (net.chain === "fluent" && isUsdnrSusdnrPair(pair))) &&
+              (net.chain === "fluent" && isSusdnrUsdnrPair(pair))) &&
             Boolean(comboState.combos[0]),
           nativeRouteLabel: getNativeRouteLabel(pair, net),
         };

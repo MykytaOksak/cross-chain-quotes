@@ -62,8 +62,8 @@
       "minProfitPct": 0.01
     },
     {
-      "id": "usdnr-susdnr-pair-min-profit",
-      "tokenId": "usdnr",
+      "id": "susdnr-usdnr-pair-min-profit",
+      "tokenId": "susdnr",
       "tokenSide": "base",
       "minProfitPct": 0.2
     }
@@ -600,10 +600,10 @@
   ],
   "pairs": [
     {
-      "id": "usdnr-susdnr",
+      "id": "susdnr-usdnr",
       "amount": "100000",
-      "baseTokenId": "usdnr",
-      "quoteTokenId": "susdnr",
+      "baseTokenId": "susdnr",
+      "quoteTokenId": "usdnr",
       "allowSameChainArb": true,
       "networks": {
         "fluent": true
