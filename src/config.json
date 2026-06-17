@@ -60,6 +60,12 @@
       "tokenId": "reusd",
       "tokenSide": "base",
       "minProfitPct": 0.01
+    },
+    {
+      "id": "usdnr-susdnr-pair-min-profit",
+      "tokenId": "usdnr",
+      "tokenSide": "base",
+      "minProfitPct": 0.2
     }
   ],
   "tokens": [
@@ -570,9 +576,39 @@
         "plasma": "0xb77e872a68c62cfc0dfb02c067ecc3da23b4bbf3",
         "ink": "0xfc421ad3c883bf9e7c4f42de845c4e4405799e73"
       }
+    },
+    {
+      "id": "usdnr",
+      "symbol": "USDnr",
+      "decimalsByNetwork": {
+        "fluent": 6
+      },
+      "addresses": {
+        "fluent": "0xD48e565561416dE59DA1050ED70b8d75e8eF28f9"
+      }
+    },
+    {
+      "id": "susdnr",
+      "symbol": "sUSDnr",
+      "decimalsByNetwork": {
+        "fluent": 6
+      },
+      "addresses": {
+        "fluent": "0xFa9b3B45587f9fcdE14759121C3868C2733DCbf4"
+      }
     }
   ],
   "pairs": [
+    {
+      "id": "usdnr-susdnr",
+      "amount": "100000",
+      "baseTokenId": "usdnr",
+      "quoteTokenId": "susdnr",
+      "allowSameChainArb": true,
+      "networks": {
+        "fluent": true
+      }
+    },
     {
       "id": "usdc-usdt",
       "amount": "50000",
@@ -1199,6 +1235,10 @@
     {
       "name": "Movement",
       "chain": "movement"
+    },
+    {
+      "name": "Fluent",
+      "chain": "fluent"
     }
   ],
   "pendle": {

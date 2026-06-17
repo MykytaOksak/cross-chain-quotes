@@ -22,6 +22,10 @@ const ENSO_INK_CHAIN_ID = 57073;
 const ENSO_REQUEST_GAP_MS = 1_150;
 const ENSO_RATE_LIMIT_RETRY_MS = 1_500;
 const AVALANCHE_PUBLIC_RPC = "https://api.avax.network/ext/bc/C/rpc";
+const FLUENT_PUBLIC_RPC = "https://rpc.fluent.xyz";
+const FLUXFLOW_QUOTER_ADDRESS = "0x4cfc01cE8bcEEC0371e4C03223F9d1E46622b4Ec";
+const FLUXFLOW_USDNR_SUSDNR_FEE = 500;
+const NERONA_SUSDNR_VAULT_ADDRESS = "0x50AE83DBDC44208eDa1Ef722F87Bab0FFB195Eea";
 const PLASMA_USDT_PROXY_RATE_CHAIN = "arbitrum";
 const PLASMA_USDT_PROXY_RATE_LABEL = "Binance USDC/USDT";
 const PLASMA_USDT_PROXY_RATE_MIN = 0.97;
@@ -44,6 +48,9 @@ const AVALANCHE_SAVUSD_REDEEM_FEE_BPS = 5n;
 const BPS_DENOMINATOR = 10_000n;
 const SELECTOR_PREVIEW_DEPOSIT = "0xef8b30f7";
 const SELECTOR_PREVIEW_REDEEM = "0x4cdad506";
+const SELECTOR_FLUXFLOW_QUOTE_EXACT_INPUT_SINGLE = "0xc6a5026a";
+const SELECTOR_NERONA_PREVIEW_DEPOSIT = "0xb8f82b26";
+const SELECTOR_NERONA_PREVIEW_REDEMPTION = "0xb4db4be8";
 
 let dynamicGapMs = BASE_REQUEST_GAP_MS;
 let nextRequestAt = 0;
@@ -934,6 +941,15 @@ function wordToBigInt(word) {
   return BigInt(`0x${word || "0"}`);
 }
 
+function isUsdnrSusdnrPair(pair) {
+  return pair.baseTokenId === "usdnr" && pair.quoteTokenId === "susdnr";
+}
+
+function getNativeRouteLabel(pair, network) {
+  if (network.chain === "fluent" && isUsdnrSusdnrPair(pair)) return "Stake/Unstake";
+  return "Mint/Redeem";
+}
+
 async function rpcCall(rpcUrl, method, params) {
   const response = await fetch(rpcUrl, {
     method: "POST",
@@ -957,6 +973,35 @@ async function rpcCall(rpcUrl, method, params) {
     throw new Error("RPC result is empty");
   }
   return payload.result;
+}
+
+async function fetchFluxFlowQuote(tokenIn, tokenOut, amount, inDecimals, outDecimals) {
+  const amountAtomic = BigInt(toAtomicAmount(amount, inDecimals));
+  if (amountAtomic <= 0n) {
+    throw new Error("Invalid amount for FluxFlow quote");
+  }
+  const encodedParams = AbiCoder.defaultAbiCoder().encode(
+    ["tuple(address tokenIn,address tokenOut,uint256 amountIn,uint24 fee,uint160 sqrtPriceLimitX96)"],
+    [[tokenIn, tokenOut, amountAtomic, FLUXFLOW_USDNR_SUSDNR_FEE, 0n]]
+  );
+  const data = `${SELECTOR_FLUXFLOW_QUOTE_EXACT_INPUT_SINGLE}${stripHexPrefix(encodedParams)}`;
+  const raw = await rpcCall(FLUENT_PUBLIC_RPC, "eth_call", [{ to: FLUXFLOW_QUOTER_ADDRESS, data }, "latest"]);
+  const outAmountAtomic = wordToBigInt(parseWord(raw, 0));
+  if (outAmountAtomic <= 0n) {
+    throw new Error("Invalid FluxFlow quote output amount");
+  }
+  return {
+    name: "FluxFlow",
+    outAmount: fromAtomicAmount(outAmountAtomic.toString(), outDecimals),
+    outAmountAtomic: outAmountAtomic.toString(),
+    raw: {
+      source: "fluxflow",
+      amountIn: amountAtomic.toString(),
+      outAmountRaw: outAmountAtomic.toString(),
+      fee: FLUXFLOW_USDNR_SUSDNR_FEE,
+      quoter: FLUXFLOW_QUOTER_ADDRESS,
+    },
+  };
 }
 
 function parseReusdMintAmount(raw) {
@@ -1208,12 +1253,120 @@ async function fetchSavusdNativeMintRedeemQuote(settings, network, pair, baseVar
   };
 }
 
+async function fetchNeronaStakeUnstakeQuote(settings, network, pair, baseVariant, quoteVariant, baseSymbol, quoteSymbol, amount) {
+  if (network.chain !== "fluent") {
+    throw new Error("Nerona stake/unstake route is only supported on Fluent");
+  }
+  if (!isUsdnrSusdnrPair(pair)) {
+    throw new Error("Nerona stake/unstake route requires USDnr/sUSDnr");
+  }
+
+  const rpcUrl = settings.quoteApi?.nerona?.rpcUrl?.trim() || FLUENT_PUBLIC_RPC;
+  const quoteAmountAtomic = BigInt(toAtomicAmount(amount, quoteVariant.decimals));
+  if (quoteAmountAtomic <= 0n) {
+    throw new Error("Invalid amount for Nerona unstake quote");
+  }
+
+  const previewRedemptionData =
+    `${SELECTOR_NERONA_PREVIEW_REDEMPTION}${encodeUintArg(quoteAmountAtomic)}${encodeUintArg(1n)}`;
+  const redemptionRaw = await rpcCall(
+    rpcUrl,
+    "eth_call",
+    [{ to: NERONA_SUSDNR_VAULT_ADDRESS, data: previewRedemptionData }, "latest"]
+  );
+  const grossUnstakeUsdNrAtomic = wordToBigInt(parseWord(redemptionRaw, 0));
+  const unstakeUsdNrAtomic = wordToBigInt(parseWord(redemptionRaw, 1));
+  if (unstakeUsdNrAtomic <= 0n) {
+    throw new Error("Invalid Nerona unstake output amount");
+  }
+
+  const previewDepositData =
+    `${SELECTOR_NERONA_PREVIEW_DEPOSIT}${encodeAddressArg(baseVariant.address)}${encodeUintArg(unstakeUsdNrAtomic)}`;
+  const depositRaw = await rpcCall(
+    rpcUrl,
+    "eth_call",
+    [{ to: NERONA_SUSDNR_VAULT_ADDRESS, data: previewDepositData }, "latest"]
+  );
+  const stakedSUsdNrAtomic = wordToBigInt(parseWord(depositRaw, 0));
+  if (stakedSUsdNrAtomic <= 0n) {
+    throw new Error("Invalid Nerona stake output amount");
+  }
+
+  const unstakeReceiveAmount = fromAtomicAmount(unstakeUsdNrAtomic.toString(), baseVariant.decimals);
+  const stakeReceiveAmount = fromAtomicAmount(stakedSUsdNrAtomic.toString(), quoteVariant.decimals);
+  const buyFrom = Number(amount);
+  const buyReceive = Number(unstakeReceiveAmount);
+  const sellReceive = Number(stakeReceiveAmount);
+  const buyPrice = buyReceive > 0 ? buyFrom / buyReceive : Number.NaN;
+  const sellPrice = buyReceive > 0 ? sellReceive / buyReceive : Number.NaN;
+  const roundTripPct =
+    Number.isFinite(buyFrom) && buyFrom > 0 && Number.isFinite(sellReceive)
+      ? ((sellReceive - buyFrom) / buyFrom) * 100
+      : Number.NEGATIVE_INFINITY;
+
+  return {
+    id: `${pair.id}-${network.chain}-${baseVariant.id}-${quoteVariant.id}-mint-redeem`,
+    networkId: network.chain,
+    status: "ok",
+    routeLabel: "Stake/Unstake",
+    baseVariant,
+    quoteVariant,
+    buy: {
+      fromAmount: amount,
+      receiveAmount: unstakeReceiveAmount,
+      price: Number.isFinite(buyPrice) ? buyPrice.toFixed(6) : "—",
+      fromSymbol: quoteSymbol,
+      receiveSymbol: baseSymbol,
+      fromVariantLabel: quoteVariant.label,
+      receiveVariantLabel: baseVariant.label,
+      market: "Nerona unstake",
+      raw: {
+        source: "nerona",
+        vault: NERONA_SUSDNR_VAULT_ADDRESS,
+        grossUnstakeUsdNrAtomic: grossUnstakeUsdNrAtomic.toString(),
+        unstakeUsdNrAtomic: unstakeUsdNrAtomic.toString(),
+        instant: true,
+      },
+    },
+    sell: {
+      fromAmount: unstakeReceiveAmount,
+      receiveAmount: stakeReceiveAmount,
+      price: Number.isFinite(sellPrice) ? sellPrice.toFixed(6) : "—",
+      fromSymbol: baseSymbol,
+      receiveSymbol: quoteSymbol,
+      fromVariantLabel: baseVariant.label,
+      receiveVariantLabel: quoteVariant.label,
+      market: "Nerona stake",
+      raw: {
+        source: "nerona",
+        vault: NERONA_SUSDNR_VAULT_ADDRESS,
+        stakedSUsdNrAtomic: stakedSUsdNrAtomic.toString(),
+      },
+    },
+    roundTripPct,
+    excludeFromArb: false,
+    updatedAt: Date.now(),
+  };
+}
+
 async function fetchMintRedeemQuote(settings, network, pair, baseVariant, quoteVariant, baseSymbol, quoteSymbol, amount) {
   if (pair.baseTokenId === "reusd" && pair.quoteTokenId === "usdc") {
     return fetchReusdMintRedeemQuote(settings, network, pair, baseVariant, quoteVariant, baseSymbol, quoteSymbol, amount);
   }
   if (pair.baseTokenId === "savusd" && pair.quoteTokenId === "usdc") {
     return fetchSavusdNativeMintRedeemQuote(
+      settings,
+      network,
+      pair,
+      baseVariant,
+      quoteVariant,
+      baseSymbol,
+      quoteSymbol,
+      amount
+    );
+  }
+  if (isUsdnrSusdnrPair(pair)) {
+    return fetchNeronaStakeUnstakeQuote(
       settings,
       network,
       pair,
@@ -1314,6 +1467,23 @@ async function fetchQuoteForVariant(settings, network, pair, baseVariant, quoteV
         baseVariant.address,
         quoteVariant.address,
         String(buyBest.outAmount)
+      );
+      buyRaw = { source: buyBest.name, amountIn: buyRequestAmountHuman, outAmount: buyBest.outAmount, ...buyBest.raw };
+      sellRaw = { source: sellBest.name, amountIn: buyBest.outAmount, outAmount: sellBest.outAmount, ...sellBest.raw };
+    } else if (network.chain === "fluent" && pair.id === "usdnr-susdnr") {
+      buyBest = await fetchFluxFlowQuote(
+        quoteVariant.address,
+        baseVariant.address,
+        buyRequestAmountHuman,
+        quoteVariant.decimals,
+        baseVariant.decimals
+      );
+      sellBest = await fetchFluxFlowQuote(
+        baseVariant.address,
+        quoteVariant.address,
+        String(buyBest.outAmount),
+        baseVariant.decimals,
+        quoteVariant.decimals
       );
       buyRaw = { source: buyBest.name, amountIn: buyRequestAmountHuman, outAmount: buyBest.outAmount, ...buyBest.raw };
       sellRaw = { source: sellBest.name, amountIn: buyBest.outAmount, outAmount: sellBest.outAmount, ...sellBest.raw };
@@ -1669,10 +1839,10 @@ function buildLoadingVariantItem(pair, network, combo, routeLabel) {
   };
 }
 
-function buildLoadingVariantItems(pair, network, combos, includeMintRedeem, previousItems = []) {
+function buildLoadingVariantItems(pair, network, combos, includeMintRedeem, previousItems = [], nativeRouteLabel = "Mint/Redeem") {
   const placeholders = combos.map((combo) => buildLoadingVariantItem(pair, network, combo));
   if (includeMintRedeem && combos[0]) {
-    placeholders.push(buildLoadingVariantItem(pair, network, combos[0], "Mint/Redeem"));
+    placeholders.push(buildLoadingVariantItem(pair, network, combos[0], nativeRouteLabel));
   }
 
   return placeholders.map((placeholder) => {
@@ -1815,17 +1985,18 @@ function prepareArbSnapshotState(settings, previousQuoteMap = null) {
           net,
           ...comboState,
           includeMintRedeem:
-            ((net.chain === "ethereum" && pair.baseTokenId === "reusd") ||
-              (net.chain === "avalanche" && pair.baseTokenId === "savusd")) &&
-            pair.quoteTokenId === "usdc" &&
+            ((net.chain === "ethereum" && pair.baseTokenId === "reusd" && pair.quoteTokenId === "usdc") ||
+              (net.chain === "avalanche" && pair.baseTokenId === "savusd" && pair.quoteTokenId === "usdc") ||
+              (net.chain === "fluent" && isUsdnrSusdnrPair(pair))) &&
             Boolean(comboState.combos[0]),
+          nativeRouteLabel: getNativeRouteLabel(pair, net),
         };
       })
     )
   );
 
   tasks.forEach((task) => {
-    const { pair, net, combos, error, baseSymbol, quoteSymbol, includeMintRedeem } = task;
+    const { pair, net, combos, error, baseSymbol, quoteSymbol, includeMintRedeem, nativeRouteLabel } = task;
     if (!quoteMap[pair.id]) {
       quoteMap[pair.id] = {};
     }
@@ -1835,7 +2006,14 @@ function prepareArbSnapshotState(settings, previousQuoteMap = null) {
     }
 
     const previousItems = previousQuoteMap?.[pair.id]?.[net.chain];
-    quoteMap[pair.id][net.chain] = buildLoadingVariantItems(pair, net, combos, includeMintRedeem, previousItems);
+    quoteMap[pair.id][net.chain] = buildLoadingVariantItems(
+      pair,
+      net,
+      combos,
+      includeMintRedeem,
+      previousItems,
+      nativeRouteLabel
+    );
   });
 
   return { quoteMap, tasks };
@@ -1867,7 +2045,7 @@ export async function buildArbSnapshot(configPath, options = {}) {
     usdcUsdtRateError = error instanceof Error ? error.message : String(error ?? "Unknown error");
   }
   const processTask = async (task) => {
-    const { pair, net, combos, error, baseSymbol, quoteSymbol, includeMintRedeem } = task;
+    const { pair, net, combos, error, baseSymbol, quoteSymbol, includeMintRedeem, nativeRouteLabel } = task;
     if (error) {
       quoteMap[pair.id][net.chain] = [buildErrorVariantItem(pair, net, baseSymbol, quoteSymbol, error)];
       publishSnapshot();
@@ -1878,7 +2056,14 @@ export async function buildArbSnapshot(configPath, options = {}) {
     const needsProxyRate =
       net.chain === "plasma" &&
       combos.some((combo) => combo.baseVariant.proxyTokenId === "usdt" || combo.quoteVariant.proxyTokenId === "usdt");
-    let results = buildLoadingVariantItems(pair, net, combos, includeMintRedeem, quoteMap[pair.id]?.[net.chain]);
+    let results = buildLoadingVariantItems(
+      pair,
+      net,
+      combos,
+      includeMintRedeem,
+      quoteMap[pair.id]?.[net.chain],
+      nativeRouteLabel
+    );
     quoteMap[pair.id][net.chain] = results;
     publishSnapshot();
     const replaceResult = (item) => {
@@ -1950,7 +2135,7 @@ export async function buildArbSnapshot(configPath, options = {}) {
           id: `${pair.id}-${net.chain}-${combos[0].id}-mint-redeem`,
           networkId: net.chain,
           status: "error",
-          routeLabel: "Mint/Redeem",
+          routeLabel: nativeRouteLabel,
           baseVariant: combos[0].baseVariant,
           quoteVariant: combos[0].quoteVariant,
           error: errorValue instanceof Error ? errorValue.message : "Error",
