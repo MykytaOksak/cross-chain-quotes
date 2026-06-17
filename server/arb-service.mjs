@@ -1280,7 +1280,7 @@ async function fetchNeronaStakeUnstakeQuote(settings, network, pair, baseVariant
   }
 
   const previewRedemptionData =
-    `${SELECTOR_NERONA_PREVIEW_REDEMPTION}${encodeUintArg(stakedSUsdNrAtomic)}${encodeUintArg(1n)}`;
+    `${SELECTOR_NERONA_PREVIEW_REDEMPTION}${encodeUintArg(stakedSUsdNrAtomic)}${encodeUintArg(0n)}`;
   const redemptionRaw = await rpcCall(
     rpcUrl,
     "eth_call",
@@ -1340,7 +1340,7 @@ async function fetchNeronaStakeUnstakeQuote(settings, network, pair, baseVariant
         vault: NERONA_SUSDNR_VAULT_ADDRESS,
         grossUnstakeUsdNrAtomic: grossUnstakeUsdNrAtomic.toString(),
         unstakeUsdNrAtomic: unstakeUsdNrAtomic.toString(),
-        instant: true,
+        instant: false,
       },
     },
     roundTripPct,
