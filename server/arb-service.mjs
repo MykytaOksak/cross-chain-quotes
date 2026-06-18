@@ -717,6 +717,78 @@ async function fetchCanoeQuote(endpoint, chain, account, tokenIn, tokenOut, amou
   return quote;
 }
 
+async function fetchOpenOceanQuote(chain, tokenIn, tokenOut, amountInHuman, outDecimals, account, slippage) {
+  const url = new URL(`https://open-api.openocean.finance/v4/${chain}/quote`);
+  url.searchParams.set("inTokenAddress", tokenIn);
+  url.searchParams.set("outTokenAddress", tokenOut);
+  url.searchParams.set("amount", amountInHuman);
+  url.searchParams.set("slippage", String(slippage ?? 1));
+  url.searchParams.set("gasPrice", chain === "mantle" ? "0.02" : "1");
+  if (account) url.searchParams.set("account", account);
+  const { response, text } = await fetchWithRateLimit(url.toString(), {
+    method: "GET",
+    headers: { accept: "application/json" },
+  });
+  if (!response.ok) {
+    throw new HttpError(response.status, `HTTP ${response.status}: ${text.slice(0, 160)}`);
+  }
+  const payload = JSON.parse(text);
+  if (payload.code && Number(payload.code) !== 200) {
+    throw new Error(payload.error || payload.message || `OpenOcean code ${payload.code}`);
+  }
+  const outRaw = payload.data?.outAmount;
+  if (typeof outRaw !== "string" && typeof outRaw !== "number") {
+    throw new Error("outAmount not found in OpenOcean response");
+  }
+  const outAtomic = String(outRaw);
+  return {
+    name: payload.data?.exchange ?? "openocean",
+    outAmount: fromAtomicAmount(outAtomic, outDecimals),
+    outAmountAtomic: outAtomic,
+  };
+}
+
+async function fetchCanoeQuoteWithKyberFallback({
+  endpoint,
+  chain,
+  account,
+  tokenIn,
+  tokenOut,
+  amountInHuman,
+  inDecimals,
+  outDecimals,
+  slippage,
+}) {
+  try {
+    return await fetchCanoeQuote(endpoint, chain, account, tokenIn, tokenOut, amountInHuman, slippage);
+  } catch (canoeError) {
+    const market = getMarketNameFromEndpoint(endpoint);
+    if (market === "openocean") {
+      try {
+        return await fetchOpenOceanQuote(chain, tokenIn, tokenOut, amountInHuman, outDecimals, account, slippage);
+      } catch (openOceanError) {
+        try {
+          const amountInAtomic = toAtomicAmount(amountInHuman, inDecimals);
+          return await fetchKyberQuote(chain, tokenIn, tokenOut, amountInAtomic, outDecimals);
+        } catch (kyberError) {
+          const canoeMessage = getErrorMessage(canoeError);
+          const openOceanMessage = getErrorMessage(openOceanError);
+          const kyberMessage = getErrorMessage(kyberError);
+          throw new Error(`${canoeMessage}; openocean fallback: ${openOceanMessage}; kyberswap fallback: ${kyberMessage}`);
+        }
+      }
+    }
+    try {
+      const amountInAtomic = toAtomicAmount(amountInHuman, inDecimals);
+      return await fetchKyberQuote(chain, tokenIn, tokenOut, amountInAtomic, outDecimals);
+    } catch (kyberError) {
+      const canoeMessage = getErrorMessage(canoeError);
+      const kyberMessage = getErrorMessage(kyberError);
+      throw new Error(`${canoeMessage}; kyberswap fallback: ${kyberMessage}`);
+    }
+  }
+}
+
 function normalizeTokenAddress(address) {
   return String(address ?? "").trim().toLowerCase();
 }
@@ -1536,26 +1608,30 @@ async function fetchQuoteForVariant(settings, network, pair, baseVariant, quoteV
       const useCanoe = network.chain === "plasma" || Boolean(endpointOverride);
       if (useCanoe) {
         const endpoint = endpointOverride ?? settings.quoteApi?.endpoint;
-        buyBest = await fetchCanoeQuote(
+        buyBest = await fetchCanoeQuoteWithKyberFallback({
           endpoint,
-          network.chain,
-          settings.quoteApi?.account,
-          quoteVariant.address,
-          baseVariant.address,
-          buyRequestAmountHuman,
-          settings.quoteApi?.slippage
-        );
+          chain: network.chain,
+          account: settings.quoteApi?.account,
+          tokenIn: quoteVariant.address,
+          tokenOut: baseVariant.address,
+          amountInHuman: buyRequestAmountHuman,
+          inDecimals: quoteVariant.decimals,
+          outDecimals: baseVariant.decimals,
+          slippage: settings.quoteApi?.slippage,
+        });
         buyRaw = { source: buyBest.name, amountIn: buyRequestAmountHuman, outAmount: buyBest.outAmount };
         const sellAmountHuman = String(buyBest.outAmount);
-        sellBest = await fetchCanoeQuote(
+        sellBest = await fetchCanoeQuoteWithKyberFallback({
           endpoint,
-          network.chain,
-          settings.quoteApi?.account,
-          baseVariant.address,
-          quoteVariant.address,
-          sellAmountHuman,
-          settings.quoteApi?.slippage
-        );
+          chain: network.chain,
+          account: settings.quoteApi?.account,
+          tokenIn: baseVariant.address,
+          tokenOut: quoteVariant.address,
+          amountInHuman: sellAmountHuman,
+          inDecimals: baseVariant.decimals,
+          outDecimals: quoteVariant.decimals,
+          slippage: settings.quoteApi?.slippage,
+        });
         sellRaw = { source: sellBest.name, amountIn: sellAmountHuman, outAmount: sellBest.outAmount };
       } else {
         const buyAmountAtomic = toAtomicAmount(buyRequestAmountHuman, quoteVariant.decimals);
