@@ -1865,6 +1865,31 @@ function buildLoadingVariantItems(pair, network, combos, includeMintRedeem, prev
   });
 }
 
+function buildPreservedVariantItems(pair, network, combos, includeMintRedeem, previousItems = [], nativeRouteLabel = "Mint/Redeem") {
+  const placeholders = combos.map((combo) => buildLoadingVariantItem(pair, network, combo));
+  if (includeMintRedeem && combos[0]) {
+    placeholders.push(buildLoadingVariantItem(pair, network, combos[0], nativeRouteLabel));
+  }
+
+  return placeholders.map((placeholder) => {
+    const previousItem = Array.isArray(previousItems)
+      ? previousItems.find((item) => item.id === placeholder.id)
+      : null;
+    if (!previousItem) {
+      return placeholder;
+    }
+    return {
+      ...placeholder,
+      ...previousItem,
+      id: placeholder.id,
+      networkId: network.chain,
+      routeLabel: placeholder.routeLabel,
+      baseVariant: placeholder.baseVariant,
+      quoteVariant: placeholder.quoteVariant,
+    };
+  });
+}
+
 function getPairAmount(settings, pair) {
   return pair.amount?.trim() ? pair.amount : settings.defaultAmount;
 }
@@ -2006,7 +2031,7 @@ function prepareArbSnapshotState(settings, previousQuoteMap = null) {
     }
 
     const previousItems = previousQuoteMap?.[pair.id]?.[net.chain];
-    quoteMap[pair.id][net.chain] = buildLoadingVariantItems(
+    quoteMap[pair.id][net.chain] = buildPreservedVariantItems(
       pair,
       net,
       combos,
