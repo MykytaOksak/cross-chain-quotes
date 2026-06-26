@@ -4191,7 +4191,7 @@ function priceFromSqrtX96Number(sqrtPriceX96: bigint, dec0: number, dec1: number
 
 function isUsdLikePortfolioSymbol(symbol?: string): boolean {
   const normalized = String(symbol ?? "").trim().toLowerCase();
-  return /^(usdc|usdcx|usdc\.e|usdt|usdt\.e|dai|usd1|usdnr|susdnr|savusd|usde|susde|usds|susds)$/.test(
+  return /^(usdc|usdcx|usdc\.e|usdt|usdt0|usdt\.e|dai|usd1|usdnr|susdnr|savusd|msusd|usde|susde|usds|susds)$/.test(
     normalized
   );
 }
