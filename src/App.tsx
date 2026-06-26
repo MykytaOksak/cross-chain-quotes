@@ -2766,6 +2766,19 @@ async function fetchOwnedErc721TokenIds(
   }
 }
 
+async function fetchErc721BalanceOf(
+  rpcUrl: string,
+  contractAddress: string,
+  owner: string
+): Promise<bigint> {
+  const raw = await ethCallHex(
+    rpcUrl,
+    contractAddress,
+    `0x70a08231${encodeAddressArg(getAddress(owner))}`
+  );
+  return wordToBigInt(parseWord(raw, 0));
+}
+
 async function fetchReceivedErc721TokenIdsFromBlock(
   rpcUrl: string,
   contractAddress: string,
@@ -3085,11 +3098,92 @@ async function fetchIndexedOwnedErc721TokenIds(
   const cached = index[cacheKey];
   const latestBlock = await ethBlockNumber(source.rpcUrl);
 
+  const rebuildIndex = async (reason: string): Promise<string[] | null> => {
+    const seededTokenIds = new Set<string>();
+    try {
+      const explorerTokenIds = await fetchReceivedErc721TokenIdsViaBlockscout(
+        source,
+        contractAddress,
+        normalizedOwner,
+        apiKey
+      );
+      if (explorerTokenIds) {
+        const verifiedExplorerTokenIds = await Promise.all(
+          explorerTokenIds.map(async (tokenId) => {
+            try {
+              const currentOwner = await fetchErc721OwnerOf(source.rpcUrl, contractAddress, tokenId);
+              return currentOwner.toLowerCase() === normalizedOwner.toLowerCase() ? tokenId : null;
+            } catch {
+              return null;
+            }
+          })
+        );
+        verifiedExplorerTokenIds.forEach((tokenId) => {
+          if (tokenId) seededTokenIds.add(tokenId);
+        });
+      }
+    } catch (error) {
+      console.log("[PortfolioDiscovery] explorer ERC721 candidate discovery failed", {
+        sourceId: source.id,
+        owner: normalizedOwner,
+        reason,
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
+
+    try {
+      const currentTokenIds = await fetchOwnedErc721TokenIds(source.rpcUrl, contractAddress, normalizedOwner);
+      currentTokenIds.forEach((tokenId) => seededTokenIds.add(tokenId));
+    } catch (error) {
+      console.log("[PortfolioDiscovery] on-chain ERC721 seed discovery failed", {
+        sourceId: source.id,
+        owner: normalizedOwner,
+        reason,
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
+
+    const tokenIds = normalizeTokenIdList(seededTokenIds);
+    if (tokenIds.length === 0) return null;
+    index[cacheKey] = {
+      tokenIds,
+      lastScannedBlock: `0x${latestBlock.toString(16)}`,
+      updatedAt: Date.now(),
+    };
+    saveErc721OwnershipIndex(index);
+    console.log("[PortfolioDiscovery] rebuilt ERC721 ownership index", {
+      sourceId: source.id,
+      owner: normalizedOwner,
+      reason,
+      tokenIds,
+      lastScannedBlock: `0x${latestBlock.toString(16)}`,
+    });
+    return tokenIds;
+  };
+
+  const repairIfBalanceMismatch = async (tokenIds: string[], reason: string): Promise<string[]> => {
+    try {
+      const balance = await fetchErc721BalanceOf(source.rpcUrl, contractAddress, normalizedOwner);
+      if (balance !== BigInt(tokenIds.length)) {
+        const rebuiltTokenIds = await rebuildIndex(reason);
+        if (rebuiltTokenIds) return rebuiltTokenIds;
+      }
+    } catch (error) {
+      console.log("[PortfolioDiscovery] ERC721 ownership index balance check failed", {
+        sourceId: source.id,
+        owner: normalizedOwner,
+        reason,
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
+    return tokenIds;
+  };
+
   if (cached?.lastScannedBlock) {
     const cachedTokenIds = normalizeTokenIdList(cached.tokenIds ?? []);
     const lastScannedBlock = parseLogNumeric(cached.lastScannedBlock);
     if (latestBlock <= lastScannedBlock) {
-      return cachedTokenIds;
+      return repairIfBalanceMismatch(cachedTokenIds, "cached-balance-mismatch");
     }
     try {
       const events = await fetchErc721TransferEventsForOwner(
@@ -3114,7 +3208,7 @@ async function fetchIndexedOwnedErc721TokenIds(
         transferCount: events.length,
         tokenIds: nextTokenIds,
       });
-      return nextTokenIds;
+      return repairIfBalanceMismatch(nextTokenIds, "updated-balance-mismatch");
     } catch (error) {
       console.log("[PortfolioDiscovery] ERC721 ownership index update failed", {
         sourceId: source.id,
@@ -3125,63 +3219,7 @@ async function fetchIndexedOwnedErc721TokenIds(
     }
   }
 
-  const seededTokenIds = new Set<string>();
-  try {
-    const explorerTokenIds = await fetchReceivedErc721TokenIdsViaBlockscout(
-      source,
-      contractAddress,
-      normalizedOwner,
-      apiKey
-    );
-    if (explorerTokenIds) {
-      const verifiedExplorerTokenIds = await Promise.all(
-        explorerTokenIds.map(async (tokenId) => {
-          try {
-            const currentOwner = await fetchErc721OwnerOf(source.rpcUrl, contractAddress, tokenId);
-            return currentOwner.toLowerCase() === normalizedOwner.toLowerCase() ? tokenId : null;
-          } catch {
-            return null;
-          }
-        })
-      );
-      verifiedExplorerTokenIds.forEach((tokenId) => {
-        if (tokenId) seededTokenIds.add(tokenId);
-      });
-    }
-  } catch (error) {
-    console.log("[PortfolioDiscovery] explorer ERC721 candidate discovery failed", {
-      sourceId: source.id,
-      owner: normalizedOwner,
-      error: error instanceof Error ? error.message : String(error),
-    });
-  }
-
-  try {
-    const currentTokenIds = await fetchOwnedErc721TokenIds(source.rpcUrl, contractAddress, normalizedOwner);
-    currentTokenIds.forEach((tokenId) => seededTokenIds.add(tokenId));
-  } catch (error) {
-    console.log("[PortfolioDiscovery] on-chain ERC721 seed discovery failed", {
-      sourceId: source.id,
-      owner: normalizedOwner,
-      error: error instanceof Error ? error.message : String(error),
-    });
-  }
-
-  const tokenIds = normalizeTokenIdList(seededTokenIds);
-  if (tokenIds.length === 0) return null;
-  index[cacheKey] = {
-    tokenIds,
-    lastScannedBlock: `0x${latestBlock.toString(16)}`,
-    updatedAt: Date.now(),
-  };
-  saveErc721OwnershipIndex(index);
-  console.log("[PortfolioDiscovery] seeded ERC721 ownership index", {
-    sourceId: source.id,
-    owner: normalizedOwner,
-    tokenIds,
-    lastScannedBlock: `0x${latestBlock.toString(16)}`,
-  });
-  return tokenIds;
+  return rebuildIndex("initial-seed");
 }
 
 async function fetchErc721OwnerOf(
@@ -6886,13 +6924,18 @@ function App() {
           .filter((item) => item.status === "ok" && item.hasBalance === false)
           .map((item) => item.id)
       );
+      const activePositionIds = new Set(
+        snapshots
+          .filter((item) => item.status === "ok" && item.hasBalance !== false)
+          .map((item) => item.id)
+      );
       const trackedSnapshots = snapshots.filter((item) => !emptyPositionIds.has(item.id));
       const nextMap: Record<string, PortfolioPositionSnapshot> = {};
       trackedSnapshots.forEach((item) => {
         nextMap[item.id] = item;
       });
       setPortfolioMap(nextMap);
-      if (emptyPositionIds.size > 0) {
+      if (emptyPositionIds.size > 0 || activePositionIds.size > 0) {
         setSettings((prev) => ({
           ...prev,
           portfolio: {
@@ -6903,7 +6946,10 @@ function App() {
             wallets: prev.portfolio?.wallets ?? [getDefaultPortfolioWallet()],
             debankDiscovery: prev.portfolio?.debankDiscovery ?? { enabled: true },
             ignoredEmptyPositionIds: Array.from(
-              new Set([...(prev.portfolio?.ignoredEmptyPositionIds ?? []), ...Array.from(emptyPositionIds)])
+              new Set([
+                ...(prev.portfolio?.ignoredEmptyPositionIds ?? []).filter((id) => !activePositionIds.has(id)),
+                ...Array.from(emptyPositionIds),
+              ])
             ),
             positions: (prev.portfolio?.positions ?? []).filter((item) => !emptyPositionIds.has(item.id)),
           },
@@ -7104,16 +7150,13 @@ function App() {
           discoveries.push({ wallet, positions });
         }
 
-        const ignoredEmptyPositionIds = new Set(settings.portfolio?.ignoredEmptyPositionIds ?? []);
         const scannedAddressSet = new Set(normalizedWallets.map((wallet) => wallet.address.toLowerCase()));
         const nextPositions = discoveries.flatMap(({ wallet, positions }) =>
-          positions
-            .filter((item) => item.sourceMode === "yuzu" || !ignoredEmptyPositionIds.has(item.id))
-            .map((item) => ({
-              ...item,
-              walletAddress: wallet.address,
-              walletTag: wallet.tag,
-            }))
+          positions.map((item) => ({
+            ...item,
+            walletAddress: wallet.address,
+            walletTag: wallet.tag,
+          }))
         );
 
         setSettings((prev) => {
