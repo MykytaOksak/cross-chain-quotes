@@ -5,7 +5,7 @@ import { acquireLock, getJson, releaseLock, setJson } from "../_lib/store.mjs";
 
 const SNAPSHOT_KEY = "arb:snapshot";
 const LOCK_KEY = "arb:refresh:lock";
-const HOSTED_REFRESH_MS = 60_000;
+const HOSTED_REFRESH_MS = 120_000;
 const REFRESHING_TTL_MS = 240_000;
 
 export const config = {

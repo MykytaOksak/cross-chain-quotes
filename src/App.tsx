@@ -468,6 +468,7 @@ const BASE_SETTINGS = baseConfig as unknown as Settings;
 const ARB_SNAPSHOT_ENDPOINT = "/api/shared/arb-snapshot";
 const ARB_REFRESH_ENDPOINT = "/api/cron/refresh-arb";
 const ARB_STREAM_ENDPOINT = "/api/shared/arb-stream";
+const HOSTED_ARB_REFRESH_MS = 120_000;
 let pendleModulePromise: Promise<typeof import("./pendle")> | null = null;
 const BASE_ARB_SETTINGS: ArbSettings = {
   defaultAmount: BASE_SETTINGS.defaultAmount,
@@ -6563,7 +6564,8 @@ function App() {
       if (!isMounted) return;
       const nextRefreshing = await refreshQuotes();
       if (!isMounted) return;
-      timer = window.setTimeout(run, nextRefreshing ? 1000 : arbSettings.refreshMs);
+      const refreshMs = IS_HOSTED_MODE ? HOSTED_ARB_REFRESH_MS : arbSettings.refreshMs;
+      timer = window.setTimeout(run, nextRefreshing ? 1000 : refreshMs);
     };
 
     run();
