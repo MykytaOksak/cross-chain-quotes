@@ -4694,17 +4694,21 @@ async function fetchYuzuPositionSnapshot(position: PortfolioPositionConfig): Pro
   const token1Decimals = token1Meta?.decimals ?? pool.token1Decimals;
   const currentSqrtPrice = BigInt(pool.currentSqrtPrice || "0");
   const liquidity = BigInt(rawPosition.liquidity);
+  const tickLower = Number(rawPosition.tick_lower);
+  const tickUpper = Number(rawPosition.tick_upper);
+  const sqrtLower = getYuzuSqrtRatioAtTick(tickLower);
+  const sqrtUpper = getYuzuSqrtRatioAtTick(tickUpper);
   const amounts = computeYuzuPositionTokenAmounts(
     liquidity,
     currentSqrtPrice,
-    Number(rawPosition.tick_lower),
-    Number(rawPosition.tick_upper),
+    tickLower,
+    tickUpper,
     token0Decimals,
     token1Decimals
   );
   const currentPrice = priceFromSqrtX80Number(currentSqrtPrice, token0Decimals, token1Decimals);
-  const lowerPrice = priceFromSqrtX80Number(getYuzuSqrtRatioAtTick(Number(rawPosition.tick_lower)), token0Decimals, token1Decimals);
-  const upperPrice = priceFromSqrtX80Number(getYuzuSqrtRatioAtTick(Number(rawPosition.tick_upper)), token0Decimals, token1Decimals);
+  const lowerPrice = priceFromSqrtX80Number(sqrtLower, token0Decimals, token1Decimals);
+  const upperPrice = priceFromSqrtX80Number(sqrtUpper, token0Decimals, token1Decimals);
   const valueSummary = buildPortfolioValueSummary(
     amounts.token0,
     amounts.token1,
@@ -4722,7 +4726,7 @@ async function fetchYuzuPositionSnapshot(position: PortfolioPositionConfig): Pro
     chain: position.chain,
     tokenId,
     status: "ok",
-    inRange: Number(pool.currentTick) >= Number(rawPosition.tick_lower) && Number(pool.currentTick) <= Number(rawPosition.tick_upper),
+    inRange: currentSqrtPrice > sqrtLower && currentSqrtPrice < sqrtUpper,
     feeLabel,
     token0Symbol,
     token1Symbol,
